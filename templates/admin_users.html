@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Административная панель - Пользователи{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>👑 Административная панель</h2>
+        <p class="admin-subtitle">Управление пользователями системы</p>
+    </div>
+
+    <div class="admin-stats">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ users|length }}</div>
+                <div class="stat-label">Всего пользователей</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ users|selectattr('role', 'equalto', 'client')|list|length }}</div>
+                <div class="stat-label">Клиентов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ users|selectattr('role', 'equalto', 'customer')|list|length }}</div>
+                <div class="stat-label">Заказчиков</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+                <div class="stat-label">Администраторов</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="users-table-container">
+        <div class="table-header">
+            <h3>📋 Список всех пользователей</h3>
+            <div class="table-actions">
+                <input type="text" id="searchUsers" placeholder="Поиск пользователей..." class="search-input">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Имя пользователя</th>
+                        <th>Email</th>
+                        <th>Роль</th>
+                        <th>Дата регистрации</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr class="user-row">
+                        <td class="user-id">{{ user.id }}</td>
+                        <td class="user-username">
+                            <strong>{{ user.username }}</strong>
+                        </td>
+                        <td class="user-email">{{ user.email }}</td>
+                        <td class="user-role">
+                            <span class="role-badge role-{{ user.role }}">
+                                {% if user.role == 'admin' %}
+                                    Администратор
+                                {% elif user.role == 'customer' %}
+                                    Заказчик
+                                {% else %}
+                                    Клиент
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="user-created">{{ user.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td class="user-status">
+                            <span class="status-{{ 'active' if user.is_active else 'inactive' }}">
+                                {{ 'Активен' if user.is_active else 'Неактивен' }}
+                            </span>
+                        </td>
+                        <td class="user-actions">
+                            <button class="btn btn-sm btn-info" onclick="viewUser({{ user.id }})">👁️</button>
+                            <button class="btn btn-sm btn-warning" onclick="editUser({{ user.id }})">✏️</button>
+                            {% if user.id != current_user.id %}
+                                <button class="btn btn-sm btn-{{ 'success' if not user.is_active else 'danger' }}"
+                                        onclick="toggleUser({{ user.id }})">
+                                    {{ 'Активировать' if not user.is_active else 'Деактивировать' }}
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if not users %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <h4>Пользователи не найдены</h4>
+            <p>В системе еще нет зарегистрированных пользователей.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function viewUser(userId) {
+    alert('Просмотр пользователя ID: ' + userId);
+    // Здесь будет реализация просмотра детальной информации
+}
+
+function editUser(userId) {
+    alert('Редактирование пользователя ID: ' + userId);
+    // Здесь будет реализация редактирования
+}
+
+function toggleUser(userId) {
+    if (confirm('Вы уверены, что хотите изменить статус пользователя?')) {
+        alert('Изменение статуса пользователя ID: ' + userId);
+        // Здесь будет AJAX запрос для изменения статуса
+    }
+}
+
+// Поиск пользователей
+document.getElementById('searchUsers').addEventListener('input', function(e) {
+    const searchTerm = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    
+    rows.forEach(row => {
+        const username = row.querySelector('.user-username').textContent.toLowerCase();
+        const email = row.querySelector('.user-email').textContent.toLowerCase();
+        const role = row.querySelector('.user-role').textContent.toLowerCase();
+        
+        if (username.includes(searchTerm) || email.includes(searchTerm) || role.includes(searchTerm)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

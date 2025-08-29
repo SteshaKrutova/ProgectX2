@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Главная - ProjectX2{% endblock %}
+
+{% block content %}
+<p>Это простая система аутентификации с тремя ролями:</p>
+<ul>
+    <li><strong>Клиент</strong> - обычный пользователь</li>
+    <li><strong>Заказчик</strong> - пользователь с расширенными правами</li>
+    <li><strong>Администратор</strong> - полный доступ к системе</li>
+</ul>
+
+{% if current_user.is_authenticated %}
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;">
+        <h3>Информация о вашем аккаунте:</h3>
+        <p><strong>Имя пользователя:</strong> {{ current_user.username }}</p>
+        <p><strong>Email:</strong> {{ current_user.email }}</p>
+        <p><strong>Роль:</strong> {{ current_user.role }}</p>
+        <p><strong>Дата регистрации:</strong> {{ current_user.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    </div>
+{% else %}
+    <div style="margin-top: 30px; text-align: center;">
+        <p>Для начала работы войдите в систему или зарегистрируйтесь</p>
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+            <a href="/login" class="btn btn-primary">Вооооооооойти</a>
+            <a href="/register" class="btn btn-primary">Регистрироваться</a>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

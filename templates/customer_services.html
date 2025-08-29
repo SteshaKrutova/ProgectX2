@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Управление услугами - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>👔 Управление услугами</h2>
+        <p class="admin-subtitle">Создание и редактирование услуг для клиентов</p>
+    </div>
+
+    <!-- Форма создания новой услуги -->
+    <div class="service-form-card">
+        <h3>➕ Создать новую услугу</h3>
+        <form method="POST" action="{{ url_for('create_service') }}" class="auth-form">
+            <div class="form-group">
+                <label for="name">Название услуги:</label>
+                <input type="text" id="name" name="name" class="form-input" required 
+                       placeholder="Например: Пинг сервера">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Описание услуги:</label>
+                <textarea id="description" name="description" class="form-input" required 
+                          placeholder="Подробное описание услуги" rows="3"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="price">Стоимость (руб.):</label>
+                <input type="number" id="price" name="price" class="form-input" required 
+                       step="0.01" min="0" placeholder="0.00">
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">Создать услугу</button>
+        </form>
+    </div>
+
+    <!-- Список существующих услуг -->
+    <div class="services-list">
+        <h3>📋 Мои услуги</h3>
+        
+        {% if services %}
+            <div class="services-grid">
+                {% for service in services %}
+                <div class="service-card">
+                    <div class="service-header">
+                        <h4>{{ service.name }}</h4>
+                        <span class="service-status status-{{ 'active' if service.is_active else 'inactive' }}">
+                            {{ 'Активна' if service.is_active else 'Неактивна' }}
+                        </span>
+                    </div>
+                    
+                    <p class="service-description">{{ service.description }}</p>
+                    
+                    <div class="service-price">
+                        💰 {{ service.price }} руб.
+                    </div>
+                    
+                    <div class="service-stats">
+                        <span>Подключено пользователей: {{ service.users|length }}</span>
+                    </div>
+
+                    <!-- Форма редактирования -->
+                    <form method="POST" action="{{ url_for('update_service', service_id=service.id) }}" 
+                          class="service-edit-form">
+                        <div class="form-group">
+                            <input type="text" name="name" value="{{ service.name }}" 
+                                   class="form-input form-input-sm" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <textarea name="description" class="form-input form-input-sm" 
+                                      rows="2" required>{{ service.description }}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <input type="number" name="price" value="{{ service.price }}" 
+                                   step="0.01" min="0" class="form-input form-input-sm" required>
+                        </div>
+
+                        <div class="service-actions">
+                            <button type="submit" class="btn btn-sm btn-success">💾 Сохранить</button>
+                            <a href="{{ url_for('toggle_service', service_id=service.id) }}" 
+                               class="btn btn-sm btn-{{ 'warning' if service.is_active else 'info' }}">
+                                {{ '🚫 Выключить' if service.is_active else '✅ Включить' }}
+                            </a>
+                            <a href="{{ url_for('delete_service', service_id=service.id) }}" 
+                               class="btn btn-sm btn-danger" 
+                               onclick="return confirm('Удалить услугу «{{ service.name }}»?')">
+                                🗑️ Удалить
+                            </a>
+                        </div>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <h4>Услуги не найдены</h4>
+                <p>Создайте свою первую услугу для клиентов.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
+    </div>
+</div>
+{% endblock %}

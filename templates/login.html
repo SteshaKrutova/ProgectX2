@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - ProjectX2{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 0 auto;">
+    <h2>Вход в систему</h2>
+    
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Имя пользователя:</label>
+            <input type="text" id="username" name="username" class="form-input" required 
+                   placeholder="Введите ваше имя пользователя">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password" class="form-input" required 
+                   placeholder="Введите ваш пароль">
+        </div>
+
+        <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="remember_me">
+                Запомнить меня
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">Войти</button>
+    </form>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <p>Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+    </div>
+
+    <h4 style="text-align: center; margin-bottom: 15px;">Тестовые данные:</h4>
+    <table style="width: 100%; border-collapse: collapse; margin: 0 auto;">
+        <tr>
+            <td style="padding: 12px; border: 1px solid transparent; width: 33.33%; min-width: 200px; vertical-align: top;">
+                <strong>Администратор:</strong><br>
+                Логин: admin<br>
+                Пароль: admin123
+            </td>
+            <td style="padding: 12px; border: 1px solid transparent; width: 33.33%; min-width: 200px; vertical-align: top;">
+                <strong>Заказчик:</strong><br>
+                Логин: customer1<br>
+                Пароль: cust123
+            </td>
+            <td style="padding: 12px; border: 1px solid transparent; width: 33.33%; min-width: 200px; vertical-align: top;">
+                <strong>Клиент:</strong><br>
+                Логин: client1 <br>
+                Пароль: client123 
+                (баланс: 1000 руб.)
+            </td>
+        </tr>
+    </table>
+</div>
+</table>
+</table>
+    </table>
+</div>
+</div>
+{% endblock %}

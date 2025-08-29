@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="profile-container">
+    <div class="profile-header">
+        <h2>👤 Профиль пользователя</h2>
+        <div class="role-badge role-{{ user.role }}">
+            {{ user.role|upper }}
+        </div>
+    </div>
+
+    <div class="profile-card">
+        <div class="profile-avatar">
+            {% if user.role == 'admin' %}
+                <div class="avatar admin">👑</div>
+            {% elif user.role == 'customer' %}
+                <div class="avatar customer">👔</div>
+            {% else %}
+                <div class="avatar client">👤</div>
+            {% endif %}
+        </div>
+
+        <div class="profile-info">
+            <div class="info-group">
+                <label>Имя пользователя:</label>
+                <span class="info-value">{{ user.username }}</span>
+            </div>
+
+            <div class="info-group">
+                <label>Email:</label>
+                <span class="info-value">{{ user.email }}</span>
+            </div>
+
+            <div class="info-group">
+                <label>Роль:</label>
+                <span class="info-value role-text role-{{ user.role }}">
+                    {% if user.role == 'admin' %}
+                        Администратор
+                    {% elif user.role == 'customer' %}
+                        Заказчик
+                    {% else %}
+                        Клиент
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="info-group">
+                <label>Дата регистрации:</label>
+                <span class="info-value">{{ user.created_at.strftime('%d.%m.%Y в %H:%M') }}</span>
+            </div>
+
+            <div class="info-group">
+                <label>Статус аккаунта:</label>
+                <span class="info-value status-{{ 'active' if user.is_active else 'inactive' }}">
+                    {{ 'Активен' if user.is_active else 'Неактивен' }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-actions">
+        <a href="/" class="btn btn-secondary">
+            ← На главную
+        </a>
+        <a href="/logout" class="btn btn-danger">
+            🚪 Выйти
+        </a>
+    </div>
+
+    <div class="profile-stats">
+        <h3>📊 Статистика</h3>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <div class="stat-number">0</div>
+                <div class="stat-label">Подключенных услуг</div>
+
+
+                
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">0</div>
+                <div class="stat-label">Активных сессий</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">0</div>
+                <div class="stat-label">Последний вход</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

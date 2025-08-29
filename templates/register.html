@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация - ProjectX2{% endblock %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 0 auto;">
+    <h2>Регистрация</h2>
+    
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Имя пользователя:</label>
+            <input type="text" id="username" name="username" class="form-input" required 
+                   placeholder="Придумайте имя пользователя" minlength="3">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" class="form-input" required 
+                   placeholder="Введите ваш email">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Пароль:</label>
+            <input type="password" id="password" name="password" class="form-input" required 
+                   placeholder="Придумайте пароль" minlength="6">
+        </div>
+
+        <div class="form-group">
+            <label for="password_confirm">Подтверждение пароля:</label>
+            <input type="password" id="password_confirm" name="password_confirm" class="form-input" required 
+                   placeholder="Повторите пароль">
+        </div>
+
+        <div class="form-group">
+            <label for="role">Роль:</label>
+            <select id="role" name="role" class="form-input" required>
+                <option value="">Выберите роль</option>
+                <option value="client">Клиент</option>
+                <option value="customer">Заказчик</option>
+                <option value="admin">Администратор</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-full">Зарегистрироваться</button>
+    </form>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <p>Уже есть аккаунт? <a href="/login">Войти</a></p>
+    </div>
+</div>
+{% endblock %}

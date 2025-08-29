@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Мои услуги - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>👤 Мои услуги</h2>
+        <div class="balance-info">
+            <span class="balance-amount">Баланс: {{ current_user.balance }} руб.</span>
+            <button class="btn btn-sm btn-success" onclick="showAddBalanceModal()">Пополнить</button>
+        </div>
+    </div>
+
+    <!-- Доступные услуги -->
+    <div class="services-section">
+        <h3>📦 Доступные услуги</h3>
+        {% if services %}
+            <div class="services-grid">
+                {% for service in services %}
+                <div class="service-card">
+                    <div class="service-header">
+                        <h4>{{ service.name }}</h4>
+                        <span class="service-price">💰 {{ service.price }} руб.</span>
+                    </div>
+                    
+                    <p class="service-description">{{ service.description }}</p>
+                    
+                    <div class="service-actions">
+                        {% if service.id in connected_service_ids %}
+                            <span class="badge connected">✅ Подключена</span>
+                            <a href="{{ url_for('disconnect_service', service_id=service.id) }}" 
+                               class="btn btn-sm btn-warning"
+                               onclick="return confirm('Отключить услугу «{{ service.name }}»?')">
+                                Отключить
+                            </a>
+                        {% else %}
+                            {% if current_user.balance >= service.price %}
+                                <a href="{{ url_for('connect_service', service_id=service.id) }}" 
+                                   class="btn btn-sm btn-primary">
+                                    Подключить
+                                </a>
+                            {% else %}
+                                <span class="text-danger">Недостаточно средств</span>
+                                <button class="btn btn-sm btn-success" onclick="showAddBalanceModal()">
+                                    Пополнить баланс
+                                </button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">📭</div>
+                <h4>Нет доступных услуг</h4>
+                <p>В данный момент нет активных услуг для подключения.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Подключенные услуги -->
+    {% if user_services %}
+    <div class="services-section">
+        <h3>✅ Мои подключенные услуги</h3>
+        <div class="services-grid">
+            {% for user_service in user_services %}
+            <div class="service-card connected">
+                <div class="service-header">
+                    <h4>{{ user_service.service.name }}</h4>
+                    <span class="service-status">Подключена</span>
+                </div>
+                
+                <p class="service-description">{{ user_service.service.description }}</p>
+                
+                <div class="service-info">
+                    <div>💰 Цена подключения: {{ user_service.price_at_connection }} руб.</div>
+                    <div>📅 Дата подключения: {{ user_service.connected_at.strftime('%d.%m.%Y') }}</div>
+                    <div>🔧 Статус: {{ 'Активна' if user_service.is_active else 'Неактивна' }}</div>
+                </div>
+                
+                <div class="service-actions">
+                    <a href="{{ url_for('disconnect_service', service_id=user_service.service.id) }}" 
+                       class="btn btn-sm btn-warning"
+                       onclick="return confirm('Отключить услугу «{{ user_service.service.name }}»?')">
+                        Отключить
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Модальное окно пополнения баланса -->
+    <div id="addBalanceModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Пополнение баланса</h3>
+            <form onsubmit="addBalance(event)">
+                <div class="form-group">
+                    <label>Сумма пополнения:</label>
+                    <input type="number" step="0.01" min="1" required 
+                           class="form-input" placeholder="Введите сумму">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-success">Пополнить</button>
+                    <button type="button" class="btn btn-secondary" 
+                            onclick="document.getElementById('addBalanceModal').style.display='none'">
+                        Отмена
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
+    </div>
+</div>
+
+<script>
+function showAddBalanceModal() {
+    document.getElementById('addBalanceModal').style.display = 'block';
+}
+
+function addBalance(event) {
+    event.preventDefault();
+    const amount = event.target.querySelector('input').value;
+    
+    fetch('{{ url_for("add_balance") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'amount=' + encodeURIComponent(amount)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Ошибка сети: ' + error);
+    });
+}
+</script>
+{% endblock %}
