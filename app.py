@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from datetime import datetime
 from flask_mail import Mail, Message
+from sqlalchemy.orm import selectinload
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -157,7 +158,7 @@ class UserService(db.Model):
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    return db.session.get(User, int(user_id))
 
 # Маршруты
 @app.route('/')
@@ -502,10 +503,12 @@ def disconnect_service(service_id):
         flash('Доступ запрещен. Только для клиентов.', 'error')
         return redirect(url_for('index'))
     
-    user_service = UserService.query.filter_by(
-        user_id=current_user.id, 
-        service_id=service_id
-    ).first()
+    user_service = db.session.query(UserService).options(
+    selectinload(UserService.service)  # Явно загружаем связанный объект service
+).filter_by(
+    user_id=current_user.id, 
+    service_id=service_id
+).first()
     
     if not user_service:
         flash('Услуга не подключена', 'error')
