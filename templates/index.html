@@ -3,28 +3,176 @@
 {% block title %}Главная - ProjectX2{% endblock %}
 
 {% block content %}
-<p>Это простая система аутентификации с тремя ролями:</p>
-<ul>
-    <li><strong>Клиент</strong> - обычный пользователь</li>
-    <li><strong>Заказчик</strong> - пользователь с расширенными правами</li>
-    <li><strong>Администратор</strong> - полный доступ к системе</li>
-</ul>
-
 {% if current_user.is_authenticated %}
-    <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;">
-        <h3>Информация о вашем аккаунте:</h3>
-        <p><strong>Имя пользователя:</strong> {{ current_user.username }}</p>
-        <p><strong>Email:</strong> {{ current_user.email }}</p>
-        <p><strong>Роль:</strong> {{ current_user.role }}</p>
-        <p><strong>Дата регистрации:</strong> {{ current_user.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
-    </div>
+    {% if current_user.role == 'customer' %}
+        <!-- Дашборд для заказчика -->
+        <div class="dashboard-header">
+            <h2> Панель управления заказчика</h2>
+        </div>
+
+        <div class="dashboard-actions-horizontal">
+            <div class="action-card-horizontal">
+                <div class="action-icon">📋</div>
+                <div class="action-content">
+                    <h3>Услуги</h3>
+                    <p>Управление созданными услугами</p>
+                    <a href="{{ url_for('customer_services') }}" class="btn btn-primary">Перейти к услугам</a>
+                </div>
+            </div>
+            
+            <div class="action-card-horizontal">
+                <div class="action-icon">📈</div>
+                <div class="action-content">
+                    <h3>Статистика</h3>
+                    <p>Просмотр аналитики по услугам</p>
+                    <button class="btn btn-secondary" disabled>Скоро будет</button>
+                </div>
+            </div>
+
+            <div class="action-card-horizontal">
+                <div class="action-icon">💰</div>
+                <div class="action-content">
+                    <h3> Промокоды</h3>
+                    <p>Создание и удаление промокодов</p>
+                    <button class="btn btn-secondary" disabled>Скоро будет</button>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Остальной код без изменений -->
+        <div class="welcome-section">
+            <h2>Добро пожаловать в ProjectX2!</h2>
+            <p>Это система управления услугами с тремя ролями пользователей:</p>
+            
+            <div class="roles-grid">
+                <div class="role-card">
+                    <h3>👤 Клиент</h3>
+                    <p>Обычный пользователь, может подключать и отключать услуги</p>
+                </div>
+                
+                <div class="role-card">
+                    <h3>👔 Заказчик</h3>
+                    <p>Пользователь с расширенными правами, создает и управляет услугами</p>
+                </div>
+                
+                <div class="role-card">
+                    <h3>👑 Администратор</h3>
+                    <p>Полный доступ к системе, управление пользователями</p>
+                </div>
+            </div>
+        </div>
+
+        {% if current_user.is_authenticated %}
+            <div class="user-info-card">
+                <h3>Информация о вашем аккаунте:</h3>
+                <p><strong>Имя пользователя:</strong> {{ current_user.username }}</p>
+                <p><strong>Email:</strong> {{ current_user.email }}</p>
+                <p><strong>Роль:</strong> {{ current_user.role }}</p>
+                <p><strong>Дата регистрации:</strong> {{ current_user.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+            </div>
+        {% endif %}
+    {% endif %}
+
 {% else %}
-    <div style="margin-top: 30px; text-align: center;">
-        <p>Для начала работы войдите в систему или зарегистрируйтесь</p>
-        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
-            <a href="/login" class="btn btn-primary">Вооооооооойти</a>
-            <a href="/register" class="btn btn-primary">Регистрироваться</a>
+    <!-- Контент для неавторизованных пользователей без изменений -->
+    <div class="welcome-section">
+        <h2>Добро пожаловать в ProjectX2!</h2>
+        <p>Это система управления услугами с тремя ролями пользователей:</p>
+        
+        <div class="roles-grid">
+            <div class="role-card">
+                <h3>👤 Клиент</h3>
+                <p>Обычный пользователь, может подключать и отключать услуги</p>
+            </div>
+            
+            <div class="role-card">
+                <h3>👔 Заказчик</h3>
+                <p>Пользователь с расширенными правами, создает и управляет услугами</p>
+            </div>
+            
+            <div class="role-card">
+                <h3>👑 Администратор</h3>
+                <p>Полный доступ к системе, управление пользователями</p>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <p>Для начала работы войдите в систему или зарегистрируйтесь</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                <a href="/login" class="btn btn-primary">Войти</a>
+                <a href="/register" class="btn btn-primary">Регистрация</a>
+            </div>
         </div>
     </div>
 {% endif %}
+
+<style>
+.dashboard-actions-horizontal {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.action-card-horizontal {
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    min-width: 300px;
+    max-width: 400px;
+    flex: 1;
+}
+
+.action-card-horizontal:hover {
+    transform: translateY(-3px);
+}
+
+.action-icon {
+    font-size: 48px;
+    margin-right: 20px;
+    flex-shrink: 0;
+}
+
+.action-content {
+    flex: 1;
+}
+
+.action-content h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 20px;
+}
+
+.action-content p {
+    color: #6c757d;
+    margin-bottom: 15px;
+}
+
+.action-content .btn {
+    width: 100%;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .dashboard-actions-horizontal {
+        flex-direction: column;
+    }
+    
+    .action-card-horizontal {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .action-icon {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+}
+</style>
 {% endblock %}
