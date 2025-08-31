@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 from datetime import datetime
+from flask_mail import Mail, Message
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -13,13 +14,101 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'instance', 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Конфигурация Email
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')  # Ваш email
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')  # Пароль приложения
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME')
+
 # Инициализация расширений
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите в систему'
 
+# Функция отправки email
+def send_email(to, subject, template, **kwargs):
+    """
+    Отправка email уведомления
+    :param to: Email получателя
+    :param subject: Тема письма
+    :param template: Шаблон письма (текстовый)
+    :param kwargs: Дополнительные параметры для шаблона
+    """
+    try:
+        msg = Message(
+            subject=subject,
+            recipients=[to],
+            html=template.format(**kwargs),
+            charset='utf-8'
+        )
+        mail.send(msg)
+        app.logger.info(f"Email отправлен на {to}")
+    except Exception as e:
+        app.logger.error(f"Ошибка отправки email: {str(e)}")
+
+# Шаблоны email сообщений
+EMAIL_TEMPLATES = {
+    'service_connected': {
+        'subject': '✅ Услуга подключена - ProjectX2',
+        'template': '''
+        <h2>Услуга успешно подключена!</h2>
+        <p>Здравствуйте, {username}!</p>
+        <p>Вы успешно подключили услугу <strong>"{service_name}"</strong>.</p>
+        <p><strong>Стоимость:</strong> {price} руб.</p>
+        <p><strong>Дата подключения:</strong> {connection_date}</p>
+        <p><strong>Описание услуги:</strong><br>{description}</p>
+        <hr>
+        <p>С уважением,<br>Команда ProjectX2</p>
+        '''
+    },
+    'service_disconnected': {
+        'subject': '❌ Услуга отключена - ProjectX2',
+        'template': '''
+        <h2>Услуга отключена</h2>
+        <p>Здравствуйте, {username}!</p>
+        <p>Вы отключили услугу <strong>"{service_name}"</strong>.</p>
+        <p><strong>Возвращено средств:</strong> {refund_amount} руб.</p>
+        <p><strong>Дата отключения:</strong> {disconnection_date}</p>
+        <hr>
+        <p>С уважением,<br>Команда ProjectX2</p>
+        '''
+    },
+    'balance_replenished': {
+        'subject': '💰 Баланс пополнен - ProjectX2',
+        'template': '''
+        <h2>Баланс успешно пополнен</h2>
+        <p>Здравствуйте, {username}!</p>
+        <p>Ваш баланс был пополнен на <strong>{amount} руб.</strong></p>
+        <p><strong>Текущий баланс:</strong> {new_balance} руб.</p>
+        <p><strong>Дата операции:</strong> {operation_date}</p>
+        <hr>
+        <p>С уважением,<br>Команда ProjectX2</p>
+        '''
+    },
+    # Добавьте в EMAIL_TEMPLATES
+    'new_customer_connection': {
+        'subject': '🎉 Новое подключение услуги - ProjectX2',
+    'template': '''
+    <h2>Новая услуга подключена!</h2>
+    <p>Здравствуйте!</p>
+    <p>Клиент <strong>{client_name}</strong> подключил вашу услугу <strong>"{service_name}"</strong>.</p>
+    <p><strong>Стоимость:</strong> {price} руб.</p>
+    <p><strong>Дата подключения:</strong> {connection_date}</p>
+    <p><strong>Email клиента:</strong> {client_email}</p>
+    <hr>
+    <p>С уважением,<br>Команда ProjectX2</p>
+    '''
+}   
+}
+
+# Инициализация Flask-Mail для email уведомлений
+mail = Mail(app)
+
 # Модели базы данных
+# определения моделей базы данных
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     
@@ -385,6 +474,19 @@ def connect_service(service_id):
         db.session.add(user_service)
         db.session.commit()
         
+        # Отправляем email уведомление :cite[7]
+        template_data = EMAIL_TEMPLATES['service_connected']
+        send_email(
+            to=current_user.email,
+            subject=template_data['subject'],
+            template=template_data['template'],
+            username=current_user.username,
+            service_name=service.name,
+            price=service.price,
+            connection_date=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
+            description=service.description
+        )
+        
         flash(f'Услуга "{service.name}" успешно подключена!', 'success')
     except Exception as e:
         db.session.rollback()
@@ -418,6 +520,18 @@ def disconnect_service(service_id):
         db.session.delete(user_service)
         db.session.commit()
         
+        # Отправляем email уведомление :cite[7]
+        template_data = EMAIL_TEMPLATES['service_disconnected']
+        send_email(
+            to=current_user.email,
+            subject=template_data['subject'],
+            template=template_data['template'],
+            username=current_user.username,
+            service_name=user_service.service.name,
+            refund_amount=refund_amount,
+            disconnection_date=datetime.utcnow().strftime('%d.%m.%Y %H:%M')
+        )
+        
         flash(f'Услуга отключена. Возвращено {refund_amount:.2f} руб.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -439,6 +553,18 @@ def add_balance():
         
         current_user.balance += amount
         db.session.commit()
+        
+        # Отправляем email уведомление :cite[7]
+        template_data = EMAIL_TEMPLATES['balance_replenished']
+        send_email(
+            to=current_user.email,
+            subject=template_data['subject'],
+            template=template_data['template'],
+            username=current_user.username,
+            amount=amount,
+            new_balance=current_user.balance,
+            operation_date=datetime.utcnow().strftime('%d.%m.%Y %H:%M')
+        )
         
         return jsonify({
             'success': True, 
