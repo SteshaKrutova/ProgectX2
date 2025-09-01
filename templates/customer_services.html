@@ -5,26 +5,29 @@
 {% block content %}
 <div class="admin-container">
     <div class="admin-header">
-        <h2> Управление услугами</h2>
+        <h2>📊 Управление услугами</h2>
         <p class="admin-subtitle">Создание и редактирование услуг для клиентов</p>
     </div>
 
     <!-- Сначала показываем существующие услуги -->
     <div class="services-list">
-        <h3> Услуги</h3>
+        <h3>📦 Услуги</h3>
         
         {% if services %}
             <div class="services-grid">
                 {% for service in services %}
-                <div class="service-card">
+                <div class="service-card {% if service.in_development %}service-development{% endif %}">
+                    {% if service.in_development %}
+                    <div class="development-badge">🚧 В разработке</div>
+                    {% endif %}
+                    
                     <div class="service-header">
                         <h4>{{ service.name }}</h4>
                         <div class="service-header-actions">
-                            
                             <div class="service-dropdown">
-                               <button class="service-settings-btn" onclick="toggleSettings({{ service.id }}, event)">
-                                        ⚙️
-                                    </button>
+                                <button class="service-settings-btn" onclick="toggleSettings({{ service.id }}, event)">
+                                    ⚙️
+                                </button>
                                 <div class="service-dropdown-content" id="settings-{{ service.id }}">
                                     <form method="POST" action="{{ url_for('update_service', service_id=service.id) }}" 
                                           class="service-edit-form">
@@ -46,16 +49,24 @@
                                                    step="0.01" min="0" class="form-input form-input-sm" required>
                                         </div>
 
+                                        <div class="form-group">
+                                            <label class="checkbox-label">
+                                                <input type="checkbox" name="in_development" 
+                                                       {% if service.in_development %}checked{% endif %}>
+                                                🚧 Услуга в разработке
+                                            </label>
+                                        </div>
+
                                         <div class="service-actions">
-                                            <button type="submit" class="btn btn-sm btn-success"> Сохранить</button>
+                                            <button type="submit" class="btn btn-sm btn-success">💾 Сохранить</button>
                                             <a href="{{ url_for('toggle_service', service_id=service.id) }}" 
                                                class="btn btn-sm btn-{{ 'warning' if service.is_active else 'info' }}">
-                                                {{ ' Выключить' if service.is_active else ' Включить' }}
+                                                {{ '🔴 Выключить' if service.is_active else '🟢 Включить' }}
                                             </a>
                                             <a href="{{ url_for('delete_service', service_id=service.id) }}" 
                                                class="btn btn-sm btn-danger" 
                                                onclick="return confirm('Удалить услугу «{{ service.name }}»?')">
-                                                 Удалить
+                                                🗑️ Удалить
                                             </a>
                                         </div>
                                     </form>
@@ -67,7 +78,7 @@
                     <p class="service-description">{{ service.description }}</p>
                     
                     <div class="service-price">
-                         {{ service.price }} руб.
+                        💰 {{ service.price }} руб.
                     </div>
                     
                     <div class="service-stats">
@@ -75,7 +86,7 @@
                             onmouseover="showTooltip(this, 'просмотр подключённых пользователей')" 
                             onmouseout="hideTooltip(this)"
                             onclick="toggleUsersList({{ service.id }})">
-                            <span class="users-count">Подключено пользователей: {{ service.users|length }}</span>
+                            <span class="users-count">👥 Подключено пользователей: {{ service.users|length }}</span>
                             <div class="tooltip">просмотр подключённых пользователей</div>
                         </div>
                         
@@ -87,10 +98,10 @@
                                     <table class="users-table">
                                         <thead>
                                             <tr>
-                                                <th>Имя пользователя</th>
-                                                <th>Email</th>
-                                                <th>Дата подключения</th>
-                                                <th>Статус</th>
+                                                <th>👤 Имя пользователя</th>
+                                                <th>📧 Email</th>
+                                                <th>📅 Дата подключения</th>
+                                                <th>🔍 Статус</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -100,7 +111,7 @@
                                                 <td>{{ user_service.user.email }}</td>
                                                 <td>{{ user_service.connected_at.strftime('%d.%m.%Y %H:%M') }}</td>
                                                 <td class="status-{{ 'active' if user_service.is_active else 'inactive' }}">
-                                                    {{ 'Активен' if user_service.is_active else 'Неактивен' }}
+                                                    {{ '✅ Активен' if user_service.is_active else '❌ Неактивен' }}
                                                 </td>
                                             </tr>
                                             {% endfor %}
@@ -108,7 +119,7 @@
                                     </table>
                                 </div>
                             {% else %}
-                                <p class="no-users">Нет подключенных пользователей</p>
+                                <p class="no-users">😔 Нет подключенных пользователей</p>
                             {% endif %}
                         </div>
                     </div>
@@ -134,24 +145,32 @@
         <div class="service-form-card" id="serviceForm" style="display: none;">
             <form method="POST" action="{{ url_for('create_service') }}" class="auth-form">
                 <div class="form-group">
-                    <label for="name">Название услуги:</label>
+                    <label for="name">📝 Название услуги:</label>
                     <input type="text" id="name" name="name" class="form-input" required 
                         placeholder="Например: Пинг сервера">
                 </div>
 
                 <div class="form-group">
-                    <label for="description">Описание услуги:</label>
+                    <label for="description">📄 Описание услуги:</label>
                     <textarea id="description" name="description" class="form-input" required 
                             placeholder="Подробное описание услуги" rows="3"></textarea>
                 </div>
 
                 <div class="form-group">
-                    <label for="price">Стоимость (руб.):</label>
+                    <label for="price">💰 Стоимость (руб.):</label>
                     <input type="number" id="price" name="price" class="form-input" required 
                         step="1" min="1" placeholder="100">
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-full">Создать услугу</button>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="in_development" id="in_development">
+                        🚧 Услуга в разработке
+                    </label>
+                    <small class="form-text">При включении этой опции услуга будет отображаться серой и недоступной для подключения</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full">🚀 Создать услугу</button>
             </form>
         </div>
     </div>
@@ -163,6 +182,60 @@
 </div>
 
 <style>
+/* Стили для услуг в разработке */
+.service-development {
+    opacity: 0.7;
+    background-color: #f8f9fa !important;
+    border: 1px dashed #6c757d;
+    position: relative;
+}
+
+.service-development .service-description {
+    color: #6c757d !important;
+}
+
+.service-development .service-price {
+    color: #6c757d !important;
+}
+
+.development-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10;
+}
+
+/* Чекбокс стили */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: normal;
+    margin-bottom: 5px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.form-text {
+    display: block;
+    color: #6c757d;
+    font-size: 12px;
+    margin-top: 4px;
+    margin-left: 24px;
+}
+
+/* Остальные стили */
 .service-header-actions {
     display: flex;
     align-items: center;
@@ -194,7 +267,7 @@
     right: 0;
     top: 100%;
     background: white;
-    min-width: 300px;
+    min-width: 320px;
     box-shadow: 0 8px 16px rgba(0,0,0,0.1);
     border-radius: 8px;
     padding: 15px;
@@ -217,38 +290,24 @@
     gap: 5px;
     flex-wrap: wrap;
     margin-top: 10px;
-    justify-content: center; /* Добавляем центрирование */
-    align-items: center; /* Выравниваем по центру по вертикали */
+    justify-content: center;
+    align-items: center;
 }
 
 .service-actions .btn {
     flex: 1;
-    min-width: 80px;
+    min-width: 90px;
     text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 
 .service-actions .btn-sm {
     padding: 8px 12px;
     font-size: 14px;
-    min-height: 36px; /* Фиксированная высота для выравнивания */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Для одинаковой ширины всех кнопок */
-.service-actions .btn {
-    flex: 1;
-    min-width: 90px;
-    max-width: 100px;
-}
-
-/* Для красивого выравнивания иконок и текста */
-.service-actions .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
+    min-height: 36px;
 }
 
 /* Стили для блока с количеством пользователей */
@@ -266,7 +325,6 @@
     background-color: #e9ecef;
 }
 
-/* Стили для тултипа */
 .tooltip {
     position: absolute;
     bottom: 100%;
@@ -334,22 +392,6 @@
     margin: 10px 0;
 }
 
-/* Анимация появления */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.users-list {
-    animation: fadeIn 0.3s ease-out;
-}
-
 /* Стили для раскрывающейся формы */
 .service-form-section {
     margin-top: 30px;
@@ -392,10 +434,6 @@
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     border: 1px solid #e0e0e0;
-}
-
-/* Анимация раскрытия */
-.service-form-card {
     animation: slideDown 0.3s ease-out;
 }
 
@@ -410,29 +448,58 @@
     }
 }
 
-/* Добавлен отступ для кнопки "На главную" */
 .admin-actions {
     margin-top: 20px;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.users-list {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .service-dropdown-content {
+        min-width: 280px;
+        right: -50px;
+    }
+    
+    .service-actions {
+        flex-direction: column;
+    }
+    
+    .service-actions .btn {
+        width: 100%;
+    }
 }
 </style>
 
 <script>
-function toggleSettings(serviceId) {
+function toggleSettings(serviceId, event) {
+    event.stopPropagation();
     const dropdown = document.getElementById('settings-' + serviceId);
     const allDropdowns = document.querySelectorAll('.service-dropdown-content');
     
-    // Закрываем все открытые dropdowns
     allDropdowns.forEach(item => {
         if (item.id !== 'settings-' + serviceId) {
             item.classList.remove('show');
         }
     });
     
-    // Открываем/закрываем текущий dropdown
     dropdown.classList.toggle('show');
 }
 
-// Закрываем dropdown при клике вне его
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.service-dropdown')) {
         document.querySelectorAll('.service-dropdown-content').forEach(dropdown => {
@@ -440,7 +507,7 @@ document.addEventListener('click', function(event) {
         });
     }
 });
-// Функция для показа тултипа
+
 function showTooltip(element, text) {
     const tooltip = element.querySelector('.tooltip');
     if (tooltip) {
@@ -448,7 +515,6 @@ function showTooltip(element, text) {
     }
 }
 
-// Функция для скрытия тултипа
 function hideTooltip(element) {
     const tooltip = element.querySelector('.tooltip');
     if (tooltip) {
@@ -456,23 +522,19 @@ function hideTooltip(element) {
     }
 }
 
-// Функция для переключения отображения списка пользователей
 function toggleUsersList(serviceId) {
     const usersList = document.getElementById('users-list-' + serviceId);
     const isVisible = usersList.style.display === 'block';
     
-    // Закрываем все открытые списки
     document.querySelectorAll('.users-list').forEach(list => {
         if (list.id !== 'users-list-' + serviceId) {
             list.style.display = 'none';
         }
     });
     
-    // Открываем/закрываем текущий список
     usersList.style.display = isVisible ? 'none' : 'block';
 }
 
-// Закрываем списки при клике вне их
 document.addEventListener('click', function(event) {
     if (!event.target.closest('.users-count-container') && 
         !event.target.closest('.users-list')) {
@@ -482,7 +544,6 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// Функция для переключения формы создания услуги
 function toggleServiceForm() {
     const form = document.getElementById('serviceForm');
     const arrow = document.querySelector('.toggle-arrow');
@@ -492,7 +553,6 @@ function toggleServiceForm() {
     arrow.classList.toggle('open', !isVisible);
 }
 
-// Закрываем форму при клике вне её
 document.addEventListener('click', function(event) {
     const form = document.getElementById('serviceForm');
     const toggle = document.querySelector('.form-toggle');

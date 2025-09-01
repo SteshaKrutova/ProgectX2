@@ -17,7 +17,11 @@
         {% if services %}
             <div class="services-grid">
                 {% for service in services %}
-                <div class="service-card">
+                <div class="service-card {% if service.in_development %}service-development{% endif %}">
+                    {% if service.in_development %}
+                    <div class="development-badge">🚧 В разработке</div>
+                    {% endif %}
+                    
                     <div class="service-header">
                         <h4>{{ service.name }}</h4>
                         
@@ -46,7 +50,9 @@
                                 Отключить
                             </a>
                         {% else %}
-                            {% if current_user.balance >= service.price %}
+                            {% if service.in_development %}
+                                <span class="badge development">🚧 В разработке</span>
+                            {% elif current_user.balance >= service.price %}
                                 <a href="{{ url_for('connect_service', service_id=service.id) }}" 
                                    class="btn btn-sm btn-primary">
                                     Подключить
@@ -73,10 +79,50 @@
 
     <div class="admin-actions">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
     </div>
 </div>
 
 <style>
+/* Стили для услуг в разработке */
+.service-development {
+    opacity: 0.7;
+    background-color: #f8f9fa !important;
+    border: 1px dashed #6c757d;
+    position: relative;
+}
+
+.service-development .service-description {
+    color: #6c757d !important;
+}
+
+.service-development .service-price {
+    color: #6c757d !important;
+}
+
+.development-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 10;
+}
+
+/* Бейдж "В разработке" */
+.badge.development {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
 /* Стили для шестерёнки */
 .gear-icon {
     font-size: 24px;
@@ -212,6 +258,16 @@
     
     .weather-btn {
         font-size: 12px;
+        padding: 4px 8px;
+    }
+    
+    .development-badge {
+        font-size: 10px;
+        padding: 3px 6px;
+    }
+    
+    .badge.development {
+        font-size: 11px;
         padding: 4px 8px;
     }
 }

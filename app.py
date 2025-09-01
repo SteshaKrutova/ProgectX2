@@ -466,7 +466,9 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(func=check_monitored_servers, trigger="interval", minutes=5)
 scheduler.add_job(func=send_weather_report, trigger="cron", hour=7, minute=0)
 scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
+atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
+
+
 
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
@@ -1813,7 +1815,7 @@ def create_tables():
 
 
 # Остановка планировщика при выходе
-atexit.register(lambda: scheduler.shutdown())
+atexit.register(lambda: scheduler.shutdown() if scheduler.running else None)
 
 if __name__ == '__main__':
     create_tables()
