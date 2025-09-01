@@ -6,15 +6,11 @@
 <div class="admin-container">
     <div class="admin-header">
         <h2>👤 Мои услуги</h2>
-        <div class="balance-info">
-            <span class="balance-amount">Баланс: {{ current_user.balance }} руб.</span>
-            <button class="btn btn-sm btn-success" onclick="showAddBalanceModal()">Пополнить</button>
-        </div>
     </div>
 
-    <!-- Доступные услуги -->
-    <div class="services-section">
-        <h3>📦 Доступные услуги</h3>
+    <!-- Услуги -->
+    <div class="services-section" style="margin-top: 20px;">
+        <h3>Услуги</h3>
         {% if services %}
             <div class="services-grid">
                 {% for service in services %}
@@ -60,39 +56,6 @@
         {% endif %}
     </div>
 
-    <!-- Подключенные услуги -->
-    {% if user_services %}
-    <div class="services-section">
-        <h3>✅ Мои подключенные услуги</h3>
-        <div class="services-grid">
-            {% for user_service in user_services %}
-            <div class="service-card connected">
-                <div class="service-header">
-                    <h4>{{ user_service.service.name }}</h4>
-                    <span class="service-status">Подключена</span>
-                </div>
-                
-                <p class="service-description">{{ user_service.service.description }}</p>
-                
-                <div class="service-info">
-                    <div>💰 Цена подключения: {{ user_service.price_at_connection }} руб.</div>
-                    <div>📅 Дата подключения: {{ user_service.connected_at.strftime('%d.%m.%Y') }}</div>
-                    <div>🔧 Статус: {{ 'Активна' if user_service.is_active else 'Неактивна' }}</div>
-                </div>
-                
-                <div class="service-actions">
-                    <a href="{{ url_for('disconnect_service', service_id=user_service.service.id) }}" 
-                       class="btn btn-sm btn-warning"
-                       onclick="return confirm('Отключить услугу «{{ user_service.service.name }}»?')">
-                        Отключить
-                    </a>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
     <!-- Модальное окно пополнения баланса -->
     <div id="addBalanceModal" class="modal" style="display: none;">
         <div class="modal-content">
@@ -114,9 +77,8 @@
         </div>
     </div>
 
-    <div class="admin-actions">
+    <div class="admin-actions" style="margin-top: 20px;">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
-        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
     </div>
 </div>
 

@@ -156,6 +156,33 @@ class UserService(db.Model):
         db.UniqueConstraint('user_id', 'service_id', name='_user_service_uc'),
     )
 
+class UsedPromoCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    promo_code = db.Column(db.String(50), nullable=False)
+    used_at = db.Column(db.DateTime, default=datetime.utcnow)
+    amount = db.Column(db.Float, nullable=False)
+    
+    user = db.relationship('User', backref=db.backref('used_promo_codes', lazy=True))
+
+    def __repr__(self):
+        return f'<UsedPromoCode {self.promo_code} by User {self.user_id}>'
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    type = db.Column(db.String(20), nullable=False)  # 'expense' или 'refund'
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=True)
+    
+    user = db.relationship('User', backref=db.backref('transactions', lazy=True))
+    service = db.relationship('Service', backref=db.backref('transactions', lazy=True))
+
+    def __repr__(self):
+        return f'<Transaction {self.type} {self.amount} by User {self.user_id}>'
+
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
 def load_user(user_id):
@@ -724,6 +751,72 @@ def admin_add_user():
             return render_template('admin_add_user.html')
     
     return render_template('admin_add_user.html')
+
+@app.route('/add-balance')
+@login_required
+def add_balance_page():
+    """Страница пополнения баланса"""
+    if current_user.role != 'client':
+        flash('Эта страница доступна только клиентам', 'error')
+        return redirect(url_for('index'))
+    
+    # Проверяем, использовал ли пользователь уже промокод
+    promo_used = UsedPromoCode.query.filter_by(
+        user_id=current_user.id, 
+        promo_code='progectx2'
+    ).first() is not None
+    
+    return render_template('add_balance.html', promo_used=promo_used)
+
+@app.route('/apply-promo', methods=['POST'])
+@login_required
+def apply_promo():
+    """Обработка промокода"""
+    if current_user.role != 'client':
+        flash('Эта функция доступна только клиентам', 'error')
+        return redirect(url_for('index'))
+    
+    promo_code = request.form.get('promo_code', '').strip().lower()
+    
+    if promo_code == 'progectx2':
+        # Проверяем, не использовал ли уже пользователь этот промокод
+        already_used = UsedPromoCode.query.filter_by(
+            user_id=current_user.id, 
+            promo_code=promo_code
+        ).first()
+        
+        if already_used:
+            flash('❌ Вы уже использовали этот промокод ранее', 'error')
+        else:
+            # Добавляем бонус и записываем использование
+            current_user.balance += 1000
+            new_used_promo = UsedPromoCode(
+                user_id=current_user.id,
+                promo_code=promo_code,
+                amount=1000
+            )
+            db.session.add(new_used_promo)
+            db.session.commit()
+            flash('🎉 Промокод успешно активирован! На ваш баланс добавлено 1000 рублей.', 'success')
+    else:
+        flash('❌ Неверный промокод. Попробуйте "progectx2"', 'error')
+    
+    return redirect(url_for('add_balance_page'))
+
+@app.route('/client/expense-history')
+@login_required
+def expense_history():
+    """Страница истории расходов клиента"""
+    if current_user.role != 'client':
+        flash('Эта страница доступна только клиентам', 'error')
+        return redirect(url_for('index'))
+    
+    # Получаем подключенные услуги пользователя
+    user_services = UserService.query.filter_by(user_id=current_user.id).all()
+    
+    return render_template('expense_history.html', 
+                         user_services=user_services,
+                         user=current_user)
 
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 

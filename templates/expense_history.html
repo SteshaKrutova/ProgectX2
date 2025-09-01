@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}История расходов - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2> История расходов</h2>
+    </div>
+
+    <div class="expense-history-section">
+        <h3>📋 История операций</h3>
+        
+        {% if user_services %}
+        <div class="expense-table-container">
+            <table class="expense-table">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Тип операции</th>
+                        <th>Услуга</th>
+                        <th>Сумма</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user_service in user_services %}
+                    <!-- Запись о подключении услуги -->
+                    <tr class="expense-row">
+                        <td>{{ user_service.connected_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td> Списание</td>
+                        <td>{{ user_service.service.name }}</td>
+                        <td class="expense-amount negative">-{{ user_service.price_at_connection }} руб.</td>
+                        <td class="status-active">✅ Активна</td>
+                    </tr>
+                    
+                    <!-- Запись о возврате средств (если услуга отключена) -->
+                    {% if not user_service.is_active %}
+                    <tr class="expense-row">
+                        <td>{{ user_service.connected_at.strftime('%d.%m.%Y') }} (отключение)</td>
+                        <td> Возврат</td>
+                        <td>{{ user_service.service.name }}</td>
+                        <td class="expense-amount positive">+{{ user_service.price_at_connection * 0.5 }} руб.</td>
+                        <td class="status-inactive">❌ Отключена</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <h4>История операций пуста</h4>
+            <p>У вас пока нет операций по услугам.</p>
+            <a href="{{ url_for('client_services') }}" class="btn btn-primary">Посмотреть услуги</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Статистика расходов -->
+    {% if user_services %}
+    <div class="expense-stats">
+        <h3>📊 Статистика расходов</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"></div>
+                <div class="stat-content">
+                    <h4>Общие расходы</h4>
+                    <p class="stat-number">
+                        {{ user_services|sum(attribute='price_at_connection') }} руб.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-content">
+                    <h4>Подключено услуг</h4>
+                    <p class="stat-number">{{ user_services|length }}</p>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-content">
+                    <h4>Активных услуг</h4>
+                    <p class="stat-number">
+                        {{ user_services|selectattr('is_active')|list|length }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="admin-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('client_services') }}" class="btn btn-info"> К услугам</a>
+    </div>
+</div>
+
+<style>
+.expense-history-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+}
+
+.expense-history-section h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.expense-table-container {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.expense-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.expense-table th {
+    background: #f8f9fa;
+    padding: 15px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.expense-table td {
+    padding: 12px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.expense-row:hover {
+    background-color: #f8f9fa;
+}
+
+.expense-amount {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.expense-amount.negative {
+    color: #dc3545;
+}
+
+.expense-amount.positive {
+    color: #28a745;
+}
+
+.status-active {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.status-inactive {
+    color: #dc3545;
+    font-weight: 500;
+}
+
+/* Статистика */
+.expense-stats {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+}
+
+.expense-stats h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.stat-card {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 10px;
+    transition: transform 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    font-size: 32px;
+    margin-right: 15px;
+    flex-shrink: 0;
+}
+
+.stat-content h4 {
+    color: #495057;
+    margin: 0 0 5px 0;
+    font-size: 14px;
+}
+
+.stat-number {
+    color: #2c3e50;
+    font-size: 20px;
+    font-weight: bold;
+    margin: 0;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 15px;
+}
+
+.empty-state h4 {
+    color: #6c757d;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: #adb5bd;
+    margin-bottom: 20px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .expense-table {
+        font-size: 14px;
+    }
+    
+    .expense-table th,
+    .expense-table td {
+        padding: 8px 6px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .stat-icon {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}
+</style>
+{% endblock %}

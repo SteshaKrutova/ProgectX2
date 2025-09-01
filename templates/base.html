@@ -5,6 +5,140 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}ProjectX2{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Balance info in navbar */
+        .balance-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 8px 15px;
+            border-radius: 25px;
+            color: black;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .balance-info:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .balance-amount {
+            font-weight: 600;
+            font-size: 14px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .balance-btn {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .balance-btn:hover {
+            background: linear-gradient(135deg, #219a52, #27ae60);
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .balance-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Анимация пульсации для привлечения внимания */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .balance-btn.new-notification {
+            animation: pulse 2s infinite;
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }
+
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 768px) {
+            .balance-info {
+                padding: 6px 12px;
+                gap: 8px;
+            }
+            
+            .balance-amount {
+                font-size: 12px;
+            }
+            
+            .balance-btn {
+                width: 24px;
+                height: 24px;
+                font-size: 14px;
+            }
+        }
+
+        /* Стили для всплывающих уведомлений */
+        .flash-messages {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .flash {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            animation: slideInDown 0.5s ease-out;
+        }
+
+        .flash-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -16,17 +150,12 @@
                     {% if current_user.role == 'client' %}
                     <div class="balance-info">
                         <span class="balance-amount">💰 {{ current_user.balance }} руб.</span>
-                        <button class="balance-btn" onclick="showAddBalanceModal()">+</button>
+                        <a href="{{ url_for('add_balance_page') }}" class="balance-btn">+</a>
                     </div>
                     {% endif %}
-                    
                     <a href="/profile" class="nav-link">👤 {{ current_user.username }}</a>
-                    
                     {% if current_user.role == 'customer' %}
-                        <a href="{{ url_for('customer_services') }}" class="nav-link">📋 Услуги</a>
-                        <a href="{{ url_for('customer_stats') }}" class="nav-link">📈 Статистика</a>
                     {% elif current_user.role == 'admin' %}
-                        <a href="{{ url_for('admin_users') }}" class="nav-link">👑 Пользователи</a>
                     {% endif %}
                     
                     <a href="/logout" class="nav-link">Выйти</a>
@@ -36,28 +165,7 @@
                 {% endif %}
             </div>
         </nav>
-
-        <!-- Модальное окно пополнения баланса -->
-        <div id="addBalanceModal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <h3>💰 Пополнение баланса</h3>
-                <form onsubmit="addBalance(event)">
-                    <div class="form-group">
-                        <label>Сумма пополнения (руб.):</label>
-                        <input type="number" step="0.01" min="1" required 
-                            class="form-input" placeholder="Введите сумму" id="balanceAmount">
-                    </div>
-                    <div class="modal-actions">
-                        <button type="submit" class="btn btn-success">Пополнить</button>
-                        <button type="button" class="btn btn-secondary" 
-                                onclick="document.getElementById('addBalanceModal').style.display='none'">
-                            Отмена
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
+        
         <div class="flash-messages">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -74,57 +182,19 @@
     </div>
     
     {% block extra_js %}{% endblock %}
+    
+    <script>
+        // Функция для добавления анимации пульсации при новом уведомлении
+        function checkForNewNotifications() {
+            // Здесь можно добавить логику проверки новых уведомлений
+            // Например, если есть непрочитанные уведомления:
+            // document.querySelector('.balance-btn').classList.add('new-notification');
+        }
+        
+        // Проверяем уведомления при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            checkForNewNotifications();
+        });
+    </script>
 </body>
 </html>
-
-
-
-<script>
-// Функции для работы с балансом
-function showAddBalanceModal() {
-    document.getElementById('addBalanceModal').style.display = 'flex';
-    document.getElementById('balanceAmount').focus();
-}
-
-function addBalance(event) {
-    event.preventDefault();
-    const amount = document.getElementById('balanceAmount').value;
-    
-    fetch('{{ url_for("add_balance") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'amount=' + encodeURIComponent(amount)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Ошибка: ' + data.message);
-        }
-        document.getElementById('addBalanceModal').style.display = 'none';
-    })
-    .catch(error => {
-        alert('Ошибка сети: ' + error);
-        document.getElementById('addBalanceModal').style.display = 'none';
-    });
-}
-
-// Закрытие модального окна при клике вне его
-document.addEventListener('click', function(event) {
-    const modal = document.getElementById('addBalanceModal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-});
-
-// Закрытие по ESC
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape') {
-        document.getElementById('addBalanceModal').style.display = 'none';
-    }
-});
-</script>

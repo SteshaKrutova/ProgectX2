@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Пополнение баланса - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>💰 Пополнение баланса</h2>
+        <div class="balance-info">
+            <span class="balance-amount">Текущий баланс: {{ current_user.balance }} руб.</span>
+        </div>
+    </div>
+
+    <!-- Всплывающее сообщение о промокоде (только если не использован) -->
+    {% if not promo_used %}
+    <div class="promo-notification" id="promoNotification">
+        <div class="promo-notification-content">
+            <span class="promo-notification-close" onclick="closePromoNotification()">×</span>
+            <h4>🎁 Тестовый промокод</h4>
+            <p>Используйте промокод <strong>progectx2</strong> для получения 1000 рублей на баланс!</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="payment-methods">
+        <!-- Способ 1: Пополнение баланса -->
+        <div class="payment-card">
+            <div class="payment-icon">💳</div>
+            <h3>Пополнить баланс</h3>
+            <p>Выберите способ оплаты для пополнения счета</p>
+            <button class="btn btn-primary btn-full" onclick="showDevelopmentMessage()">
+                Пополнить
+            </button>
+        </div>
+
+        <!-- Способ 2: Промокод -->
+        <div class="payment-card">
+            <div class="payment-icon">🎫</div>
+            <h3>Ввести промокод</h3>
+            <p>Активируйте промокод для получения бонусов</p>
+            
+            <form method="POST" action="{{ url_for('apply_promo') }}" class="auth-form">
+                <div class="form-group">
+                    <input type="text" name="promo_code" class="form-input" 
+                           placeholder="Введите промокод" required>
+                </div>
+                <button type="submit" class="btn btn-success btn-full">
+                    Активировать промокод
+                </button>
+            </form>
+            
+            <!-- Сообщение об уже использованном промокоде -->
+            {% if promo_used %}
+            <div class="promo-used-message">
+                <p>✅ Вы уже использовали промокод progectx2</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="admin-actions" style="margin-top: 30px;">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('client_services') }}" class="btn btn-info">📦 К услугам</a>
+    </div>
+</div>
+
+<style>
+/* Стили для всплывающего уведомления о промокоде */
+.promo-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: slideInRight 0.5s ease-out;
+    max-width: 350px;
+}
+
+.promo-notification-content {
+    position: relative;
+}
+
+.promo-notification-close {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: rgba(255, 255, 255, 0.2);
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+    transition: background-color 0.3s;
+}
+
+.promo-notification-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.promo-notification h4 {
+    margin: 0 0 10px 0;
+    font-size: 1.2rem;
+}
+
+.promo-notification p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.promo-notification strong {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.promo-used-message {
+    background: #d4edda;
+    color: #155724;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 15px;
+    text-align: center;
+    border: 1px solid #c3e6cb;
+}
+
+/* Стили для карточек оплаты */
+.payment-methods {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 25px;
+    margin-top: 30px;
+}
+
+.payment-card {
+    background: #f8f9fa;
+    padding: 30px;
+    border-radius: 12px;
+    border: 2px solid #e9ecef;
+    text-align: center;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.payment-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+}
+
+.payment-icon {
+    font-size: 3.5rem;
+    margin-bottom: 20px;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+.promo-notification.hiding {
+    animation: slideOutRight 0.5s ease-in forwards;
+}
+</style>
+
+<script>
+function showDevelopmentMessage() {
+    alert('Функция пополнения баланса находится в разработке. Используйте промокод "progectx2" для тестирования.');
+}
+
+function closePromoNotification() {
+    const notification = document.getElementById('promoNotification');
+    if (notification) {
+        notification.classList.add('hiding');
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 500);
+        
+        // Сохраняем в localStorage, что уведомление было закрыто
+        localStorage.setItem('promoNotificationClosed', 'true');
+    }
+}
+
+// Проверяем, было ли уведомление уже закрыто
+document.addEventListener('DOMContentLoaded', function() {
+    const notification = document.getElementById('promoNotification');
+    if (notification && localStorage.getItem('promoNotificationClosed') === 'true') {
+        notification.style.display = 'none';
+    } else if (notification) {
+        // Автоматическое скрытие уведомления через 10 секунд
+        setTimeout(() => {
+            closePromoNotification();
+        }, 10000);
+    }
+});
+
+// Закрытие по клику вне уведомления
+document.addEventListener('click', function(event) {
+    const notification = document.getElementById('promoNotification');
+    if (notification && !notification.contains(event.target)) {
+        closePromoNotification();
+    }
+});
+</script>
+{% endblock %}

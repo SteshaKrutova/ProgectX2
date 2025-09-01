@@ -156,7 +156,8 @@
         </div>
     </div>
 
-    <div class="admin-actions">
+    <!-- Добавлен пробел между кнопками -->
+    <div class="admin-actions" style="margin-top: 20px;">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
     </div>
 </div>
@@ -407,6 +408,11 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Добавлен отступ для кнопки "На главную" */
+.admin-actions {
+    margin-top: 20px;
 }
 </style>
 
