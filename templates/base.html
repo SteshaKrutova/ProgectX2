@@ -12,12 +12,23 @@
             <h1><a href="/" class="nav-logo">ProjectX2</a></h1>
             <div class="nav-links">
                 {% if current_user.is_authenticated %}
-                    <a href="/profile" class="nav-link">Мой профиль</a>
-                    {% if current_user.role == 'admin' %}
-                        <a href="/admin/users" class="nav-link">👑 Админка</a>
-                    {% elif current_user.role == 'client' %}
-                        <a href="/client/services" class="nav-link">📦 Мои услуги</a>
+                    <!-- Отображение баланса для клиентов -->
+                    {% if current_user.role == 'client' %}
+                    <div class="balance-info">
+                        <span class="balance-amount">💰 {{ current_user.balance }} руб.</span>
+                        <button class="balance-btn" onclick="showAddBalanceModal()">+</button>
+                    </div>
                     {% endif %}
+                    
+                    <a href="/profile" class="nav-link">👤 {{ current_user.username }}</a>
+                    
+                    {% if current_user.role == 'customer' %}
+                        <a href="{{ url_for('customer_services') }}" class="nav-link">📋 Услуги</a>
+                        <a href="{{ url_for('customer_stats') }}" class="nav-link">📈 Статистика</a>
+                    {% elif current_user.role == 'admin' %}
+                        <a href="{{ url_for('admin_users') }}" class="nav-link">👑 Пользователи</a>
+                    {% endif %}
+                    
                     <a href="/logout" class="nav-link">Выйти</a>
                 {% else %}
                     <a href="/login" class="nav-link">Войти</a>
@@ -25,6 +36,27 @@
                 {% endif %}
             </div>
         </nav>
+
+        <!-- Модальное окно пополнения баланса -->
+        <div id="addBalanceModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>💰 Пополнение баланса</h3>
+                <form onsubmit="addBalance(event)">
+                    <div class="form-group">
+                        <label>Сумма пополнения (руб.):</label>
+                        <input type="number" step="0.01" min="1" required 
+                            class="form-input" placeholder="Введите сумму" id="balanceAmount">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="btn btn-success">Пополнить</button>
+                        <button type="button" class="btn btn-secondary" 
+                                onclick="document.getElementById('addBalanceModal').style.display='none'">
+                            Отмена
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <div class="flash-messages">
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -44,3 +76,55 @@
     {% block extra_js %}{% endblock %}
 </body>
 </html>
+
+
+
+<script>
+// Функции для работы с балансом
+function showAddBalanceModal() {
+    document.getElementById('addBalanceModal').style.display = 'flex';
+    document.getElementById('balanceAmount').focus();
+}
+
+function addBalance(event) {
+    event.preventDefault();
+    const amount = document.getElementById('balanceAmount').value;
+    
+    fetch('{{ url_for("add_balance") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'amount=' + encodeURIComponent(amount)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + data.message);
+        }
+        document.getElementById('addBalanceModal').style.display = 'none';
+    })
+    .catch(error => {
+        alert('Ошибка сети: ' + error);
+        document.getElementById('addBalanceModal').style.display = 'none';
+    });
+}
+
+// Закрытие модального окна при клике вне его
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('addBalanceModal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+});
+
+// Закрытие по ESC
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        document.getElementById('addBalanceModal').style.display = 'none';
+    }
+});
+</script>

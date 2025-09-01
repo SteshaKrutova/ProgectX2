@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from flask_mail import Mail, Message
 from sqlalchemy.orm import selectinload
+from datetime import datetime, timedelta  # Добавьте timedelta
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -163,6 +164,34 @@ def load_user(user_id):
 # Маршруты
 @app.route('/')
 def index():
+    if current_user.is_authenticated:
+        # Статистика для дашборда
+        active_services_count = Service.query.filter_by(is_active=True).count()
+        total_connections = UserService.query.filter_by(is_active=True).count()
+        
+        # Расчет оборота (сумма всех подключенных услуг)
+        total_revenue = db.session.query(db.func.sum(UserService.price_at_connection)).scalar() or 0
+        
+        # Последняя активность (последние 5 подключений)
+        recent_connections = UserService.query.order_by(UserService.connected_at.desc()).limit(5).all()
+        recent_activity = len(recent_connections)
+        
+        # Формируем список последних активностей
+        recent_activities = []
+        for conn in recent_connections:
+            recent_activities.append({
+                'icon': '✅',
+                'message': f'Пользователь {conn.user.username} подключил услугу "{conn.service.name}"',
+                'timestamp': conn.connected_at.strftime('%d.%m.%Y %H:%M')
+            })
+        
+        return render_template('index.html',
+                             active_services_count=active_services_count,
+                             total_connections=total_connections,
+                             total_revenue=total_revenue,
+                             recent_activity=recent_activity,
+                             recent_activities=recent_activities)
+    
     return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -411,6 +440,48 @@ def toggle_service(service_id):
     
     return redirect(url_for('customer_services'))
 
+@app.route('/customer/stats')
+@login_required
+def customer_stats():
+    """Страница статистики для заказчика"""
+    if current_user.role != 'customer':
+        flash('Доступ запрещен. Только для заказчиков.', 'error')
+        return redirect(url_for('index'))
+    
+    # Получаем услуги текущего заказчика
+    services = Service.query.filter_by(customer_id=current_user.id).all()
+    
+    # Статистика
+    active_services_count = Service.query.filter_by(
+        customer_id=current_user.id, 
+        is_active=True
+    ).count()
+    
+    total_connections = UserService.query.join(Service).filter(
+        Service.customer_id == current_user.id,
+        UserService.is_active == True
+    ).count()
+    
+    # Расчет общего дохода
+    total_revenue = db.session.query(
+        db.func.sum(UserService.price_at_connection)
+    ).join(Service).filter(
+        Service.customer_id == current_user.id
+    ).scalar() or 0
+    
+    # Активность за последние 24 часа
+    recent_activity = UserService.query.join(Service).filter(
+        Service.customer_id == current_user.id,
+        UserService.connected_at >= datetime.utcnow() - timedelta(hours=24)
+    ).count()
+    
+    return render_template('customer_stats.html',
+                         services=services,
+                         active_services_count=active_services_count,
+                         total_connections=total_connections,
+                         total_revenue=total_revenue,
+                         recent_activity=recent_activity)
+
 # ================== ЛИЧНЫЙ КАБИНЕТ КЛИЕНТА - МОИ УСЛУГИ ==================
 
 @app.route('/client/services')
@@ -580,6 +651,79 @@ def add_balance():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+    
+##для админов
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+@login_required
+def admin_add_user():
+    """Добавление нового пользователя администратором"""
+    if current_user.role != 'admin':
+        flash('Доступ запрещен. Только для администраторов.', 'error')
+        return redirect(url_for('index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        password_confirm = request.form.get('password_confirm', '')
+        role = request.form.get('role', '').strip()
+        balance = request.form.get('balance', '0').strip()
+        
+        errors = []
+        
+        if not all([username, email, password, password_confirm, role]):
+            errors.append('Все поля обязательны для заполнения.')
+        
+        if len(username) < 3:
+            errors.append('Имя пользователя должно содержать минимум 3 символа.')
+        
+        if len(password) < 6:
+            errors.append('Пароль должен содержать минимум 6 символов.')
+        
+        if password != password_confirm:
+            errors.append('Пароли не совпадают.')
+        
+        if role not in ['client', 'customer', 'admin']:
+            errors.append('Указана неверная роль.')
+        
+        try:
+            balance = float(balance)
+            if balance < 0:
+                errors.append('Баланс не может быть отрицательным.')
+        except ValueError:
+            errors.append('Неверный формат баланса.')
+        
+        if User.query.filter_by(username=username).first():
+            errors.append('Пользователь с таким именем уже существует.')
+        
+        if User.query.filter_by(email=email).first():
+            errors.append('Пользователь с таким email уже существует.')
+        
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return render_template('admin_add_user.html')
+        
+        try:
+            new_user = User(
+                username=username,
+                email=email,
+                role=role,
+                balance=balance
+            )
+            new_user.set_password(password)
+            db.session.add(new_user)
+            db.session.commit()
+            
+            flash(f'Пользователь {username} успешно создан!', 'success')
+            return redirect(url_for('admin_users'))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Произошла ошибка при создании пользователя: {str(e)}', 'error')
+            return render_template('admin_add_user.html')
+    
+    return render_template('admin_add_user.html')
 
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 

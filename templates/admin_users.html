@@ -5,7 +5,7 @@
 {% block content %}
 <div class="admin-container">
     <div class="admin-header">
-        <h2>👑 Административная панель</h2>
+        <h2> Административная панель</h2>
         <p class="admin-subtitle">Управление пользователями системы</p>
     </div>
 
@@ -33,6 +33,7 @@
     <div class="users-table-container">
         <div class="table-header">
             <h3>📋 Список всех пользователей</h3>
+            
             <div class="table-actions">
                 <input type="text" id="searchUsers" placeholder="Поиск пользователей..." class="search-input">
             </div>
@@ -90,6 +91,11 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="table-actions">
+                <a href="{{ url_for('admin_add_user') }}" class="btn btn-success">
+                    ➕ Добавить пользователя
+                </a>
+            </div>
         </div>
 
         {% if not users %}
@@ -103,7 +109,6 @@
 
     <div class="admin-actions">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
-        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
     </div>
 </div>
 {% endblock %}
