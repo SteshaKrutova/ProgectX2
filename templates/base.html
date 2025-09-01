@@ -149,7 +149,7 @@
                     <!-- Отображение баланса для клиентов -->
                     {% if current_user.role == 'client' %}
                     <div class="balance-info">
-                        <span class="balance-amount">💰 {{ current_user.balance }} руб.</span>
+                        <span class="balance-amount"> {{ current_user.balance }} руб.</span>
                         <a href="{{ url_for('add_balance_page') }}" class="balance-btn">+</a>
                     </div>
                     {% endif %}

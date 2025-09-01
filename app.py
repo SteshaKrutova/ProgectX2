@@ -9,6 +9,9 @@ from flask_mail import Mail, Message
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta  # Добавьте timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
+import requests  # Добавьте этот импорт
+import os
+from dotenv import load_dotenv  # Добавьте этот импорт
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -31,6 +34,8 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите в систему'
+# Инициализация Flask-Mail для email уведомлений
+mail = Mail(app)
 
 
 # Функция отправки email
@@ -108,9 +113,6 @@ EMAIL_TEMPLATES = {
     '''
 }   
 }
-
-# Инициализация Flask-Mail для email уведомлений
-mail = Mail(app)
 
 # Модели базы данных
 # определения моделей базы данных
@@ -224,6 +226,247 @@ class ServerMonitor(db.Model):
 
     def __repr__(self):
         return f'<ServerMonitor {self.ip_address} - {"Online" if self.is_online else "Offline"}>'
+    
+class WeatherMonitor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    city = db.Column(db.String(100), nullable=False)
+    last_check = db.Column(db.DateTime, default=datetime.utcnow)
+    last_notification = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('weather_monitors', lazy=True))
+
+    def __repr__(self):
+        return f'<WeatherMonitor {self.city} - User {self.user_id}>'
+    
+def get_weather_data(city):
+    """Получение данных о погоде с OpenWeatherMap API"""
+    try:
+        API_KEY = os.environ.get('OPENWEATHER_API_KEY') or 'your_api_key_here'
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={API_KEY}&units=metric&lang=ru"
+        
+        response = requests.get(url, timeout=10)
+        data = response.json()
+        
+        if response.status_code == 200:
+            return {
+                'success': True,
+                'city': data['name'],
+                'temperature': data['main']['temp'],
+                'feels_like': data['main']['feels_like'],
+                'humidity': data['main']['humidity'],
+                'description': data['weather'][0]['description'],
+                'weather_main': data['weather'][0]['main'],
+                'wind_speed': data['wind']['speed'],
+                'uv_index': 2  # Для демо, в реальности нужно использовать другой API для UV
+            }
+        else:
+            return {'success': False, 'error': data.get('message', 'Ошибка получения погоды')}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+    
+def generate_weather_recommendations(weather_data):
+    """Генерация рекомендаций на основе данных о погоде"""
+    recommendations = []
+    
+    # Проверка УФ индекса
+    if weather_data['uv_index'] > 2:
+        recommendations.append("🧴 Используйте солнцезащитный крем (SPF)")
+    
+    # Проверка температуры
+    if weather_data['temperature'] < 10:
+        recommendations.append("🧣 Тепло оденьтесь")
+    elif weather_data['temperature'] > 25:
+        recommendations.append("🧢 Наденьте головной убор от солнца")
+    
+    # Проверка осадков
+    if 'дождь' in weather_data['description'].lower() or weather_data['weather_main'] == 'Rain':
+        recommendations.append("☂️ Возьмите зонт")
+    elif weather_data['weather_main'] == 'Clear':
+        recommendations.append("😎 Солнезащитные очки будут кстати")
+    
+    # Проверка ветра
+    if weather_data['wind_speed'] > 5:
+        recommendations.append("🧥 Ветровка не помешает")
+    
+    # Проверка мороза
+    if weather_data['temperature'] < 0:
+        recommendations.append("🧤 Не забудьте перчатки и гигиеническую помаду")
+    
+    return recommendations
+
+def send_weather_report():
+    """Функция для отправки ежедневного отчета о погоде"""
+    with app.app_context():
+        try:
+            # Получаем всех пользователей с подключенной услугой погоды
+            weather_service = Service.query.filter_by(name='Слежка за погодой').first()
+            
+            if weather_service:
+                user_services = UserService.query.filter_by(
+                    service_id=weather_service.id,
+                    is_active=True
+                ).all()
+                
+                for user_service in user_services:
+                    user = user_service.user
+                    weather_monitors = WeatherMonitor.query.filter_by(user_id=user.id).all()
+                    
+                    for monitor in weather_monitors:
+                        weather_data = get_weather_data(monitor.city)
+                        
+                        if weather_data['success']:
+                            recommendations = generate_weather_recommendations(weather_data)
+                            
+                            template_data = {
+                                'subject': f'🌤️ Прогноз погоды в {weather_data["city"]} - ProjectX2',
+                                'template': '''
+                                <h2>Ежедневный прогноз погоды</h2>
+                                <p>Здравствуйте, {username}!</p>
+                                <p>Прогноз погоды в <strong>{city}</strong> на сегодня:</p>
+                                
+                                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                                    <p><strong>🌡️ Температура:</strong> {temperature}°C (ощущается как {feels_like}°C)</p>
+                                    <p><strong>💧 Влажность:</strong> {humidity}%</p>
+                                    <p><strong>🌬️ Ветер:</strong> {wind_speed} м/с</p>
+                                    <p><strong>☀️ УФ индекс:</strong> {uv_index}</p>
+                                    <p><strong>📝 Описание:</strong> {description}</p>
+                                </div>
+                                
+                                <h3>🎯 Рекомендации:</h3>
+                                <ul>
+                                    {recommendations}
+                                </ul>
+                                
+                                <p><strong>⏰ Время обновления:</strong> {update_time}</p>
+                                <hr>
+                                <p>С уважением,<br>Команда ProjectX2</p>
+                                '''
+                            }
+                            
+                            recommendations_html = ''
+                            if recommendations:
+                                recommendations_html = ''.join([f'<li>{rec}</li>' for rec in recommendations])
+                            else:
+                                recommendations_html = '<li>Отличная погода! Особых рекомендаций нет.</li>'
+                            
+                            send_email(
+                                to=user.email,
+                                subject=template_data['subject'],
+                                template=template_data['template'],
+                                username=user.username,
+                                city=weather_data['city'],
+                                temperature=weather_data['temperature'],
+                                feels_like=weather_data['feels_like'],
+                                humidity=weather_data['humidity'],
+                                wind_speed=weather_data['wind_speed'],
+                                uv_index=weather_data['uv_index'],
+                                description=weather_data['description'],
+                                recommendations=recommendations_html,
+                                update_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M')
+                            )
+                            
+                            monitor.last_notification = datetime.utcnow()
+                            db.session.commit()
+                            
+        except Exception as e:
+            app.logger.error(f'Ошибка отправки отчета о погоде: {str(e)}')
+def check_monitored_servers():
+    """Функция для периодической проверки серверов"""
+    with app.app_context():
+        servers_to_check = ServerMonitor.query.filter(
+            ServerMonitor.last_check < datetime.utcnow() - timedelta(minutes=5)
+        ).all()
+        
+        for server in servers_to_check:
+            try:
+                import platform
+                import subprocess
+                
+                param = '-n' if platform.system().lower() == 'windows' else '-c'
+                command = ['ping', param, '4', server.ip_address]
+                
+                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                is_online = result.returncode == 0
+                
+                # Если статус изменился
+                if server.is_online != is_online:
+                    server.is_online = is_online
+                    server.last_notification = datetime.utcnow()
+                    
+                    # Отправляем мгновенное уведомление о смене статуса
+                    template_data = {
+                        'subject': '⚠️ Изменение статуса сервера - ProjectX2' if not is_online else '✅ Сервер доступен - ProjectX2',
+                        'template': '''
+                        <h2>{title}</h2>
+                        <p>Здравствуйте, {username}!</p>
+                        <p>Статус сервера <strong>{ip_address}</strong> изменился.</p>
+                        <p><strong>Новый статус:</strong> {status}</p>
+                        <p><strong>Время изменения:</strong> {change_time}</p>
+                        <p><strong>Результат ping:</strong></p>
+                        <pre>{ping_result}</pre>
+                        <hr>
+                        <p>С уважением,<br>Команда ProjectX2</p>
+                        '''
+                    }
+                    
+                    send_email(
+                        to=server.user.email,
+                        subject=template_data['subject'],
+                        template=template_data['template'],
+                        username=server.user.username,
+                        ip_address=server.ip_address,
+                        title='Сервер стал недоступен' if not is_online else 'Сервер снова доступен',
+                        status='Недоступен ❌' if not is_online else 'Доступен ✅',
+                        change_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
+                        ping_result=result.stdout if result.returncode == 0 else result.stderr
+                    )
+                
+                # Ежечасное уведомление о доступности
+                elif (server.last_notification is None or 
+                      server.last_notification < datetime.utcnow() - timedelta(hours=1)):
+                    if server.is_online:
+                        template_data = {
+                            'subject': '📊 Сервер доступен - ProjectX2',
+                            'template': '''
+                            <h2>Сервер доступен</h2>
+                            <p>Здравствуйте, {username}!</p>
+                            <p>Сервер <strong>{ip_address}</strong> работает стабильно.</p>
+                            <p><strong>Статус:</strong> Доступен ✅</p>
+                            <p><strong>Последняя проверка:</strong> {check_time}</p>
+                            <p><strong>Результат ping:</strong></p>
+                            <pre>{ping_result}</pre>
+                            <hr>
+                            <p>С уважением,<br>Команда ProjectX2</p>
+                            '''
+                        }
+                        
+                        send_email(
+                            to=server.user.email,
+                            subject=template_data['subject'],
+                            template=template_data['template'],
+                            username=server.user.username,
+                            ip_address=server.ip_address,
+                            check_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
+                            ping_result=result.stdout
+                        )
+                    
+                    server.last_notification = datetime.utcnow()
+                
+                server.last_check = datetime.utcnow()
+                db.session.commit()
+                
+            except Exception as e:
+                app.logger.error(f'Ошибка проверки сервера {server.ip_address}: {str(e)}')
+
+# Планировщик задач
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=check_monitored_servers, trigger="interval", minutes=5)
+scheduler.add_job(func=send_weather_report, trigger="cron", hour=7, minute=0)
+scheduler.start()
+atexit.register(lambda: scheduler.shutdown())
 
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
@@ -615,30 +858,78 @@ def connect_service(service_id):
             is_active=True
         )
         db.session.add(user_service)
+        
+        # ★★★★ ДОБАВЛЯЕМ АВТОМАТИЧЕСКУЮ НАСТРОЙКУ САНКТ-ПЕТЕРБУРГА ★★★★
+        if service.name == 'Слежка за погодой':
+            # Создаем запись для мониторинга погоды в СПб по умолчанию
+            weather_monitor = WeatherMonitor(
+                user_id=current_user.id,
+                city='Санкт-Петербург'
+            )
+            db.session.add(weather_monitor)
+            flash('Автоматически настроен мониторинг погоды в Санкт-Петербурге!', 'info')
+        
         db.session.commit()
         
         # Отправляем email уведомление о подключении услуги
-        template_data = {
-            'subject': '🎉 Услуга подключена - ProjectX2',
-            'template': '''
-            <h2>Услуга успешно подключена!</h2>
-            <p>Здравствуйте, {username}!</p>
-            <p>Вы подключили услугу: <strong>"{service_name}"</strong></p>
-            <p><strong>Стоимость:</strong> {price} руб.</p>
-            <p><strong>Описание:</strong> {description}</p>
-            <p><strong>Дата подключения:</strong> {connection_date}</p>
-            <h3>📋 Возможности услуги:</h3>
-            <ul>
-                <li>🔍 Ping любых IP-адресов и доменов</li>
-                <li>📊 Мониторинг доступности серверов</li>
-                <li>📧 Уведомления о статусе серверов</li>
-                <li>📋 История выполненных проверок</li>
-            </ul>
-            <p>Для начала работы перейдите в <a href="{ping_url}">раздел Ping сервиса</a></p>
-            <hr>
-            <p>С уважением,<br>Команда ProjectX2</p>
-            '''
-        }
+        if service.name == 'Слежка за погодой':
+            template_data = {
+                'subject': '🌤️ Подключена слежка за погодой - ProjectX2',
+                'template': '''
+                <h2>Услуга "Слежка за погодой" подключена!</h2>
+                <p>Здравствуйте, {username}!</p>
+                <p>Вы подключили услугу: <strong>"{service_name}"</strong></p>
+                <p><strong>Стоимость:</strong> {price} руб.</p>
+                <p><strong>Описание:</strong> {description}</p>
+                <p><strong>Дата подключения:</strong> {connection_date}</p>
+                
+                <h3>🎯 Автоматически настроено:</h3>
+                <ul>
+                    <li>📍 Город: <strong>Санкт-Петербург</strong></li>
+                    <li>⏰ Ежедневные отчеты: <strong>7:00 утра</strong></li>
+                </ul>
+                
+                <h3>📋 Возможности услуги:</h3>
+                <ul>
+                    <li>🌤️ Ежедневные отчеты о погоде</li>
+                    <li>📧 Персональные рекомендации по одежде</li>
+                    <li>🔔 Уведомления о необходимости SPF защиты</li>
+                    <li>⏰ Проверка погоды по требованию</li>
+                </ul>
+                
+                <h3>🎯 Что делать дальше:</h3>
+                <ol>
+                    <li>Проверьте первый отчет о погоде завтра в 7:00</li>
+                    <li>Используйте кнопку "Проверить погоду" для мгновенных отчетов</li>
+                    <li>При необходимости измените город в настройках</li>
+                </ol>
+                
+                <hr>
+                <p>С уважением,<br>Команда ProjectX2</p>
+                '''
+            }
+        else:
+            template_data = {
+                'subject': '🎉 Услуга подключена - ProjectX2',
+                'template': '''
+                <h2>Услуга успешно подключена!</h2>
+                <p>Здравствуйте, {username}!</p>
+                <p>Вы подключили услугу: <strong>"{service_name}"</strong></p>
+                <p><strong>Стоимость:</strong> {price} руб.</p>
+                <p><strong>Описание:</strong> {description}</p>
+                <p><strong>Дата подключения:</strong> {connection_date}</p>
+                <h3>📋 Возможности услуги:</h3>
+                <ul>
+                    <li>🔍 Ping любых IP-адресов и доменов</li>
+                    <li>📊 Мониторинг доступности серверов</li>
+                    <li>📧 Уведомления о статусе серверов</li>
+                    <li>📋 История выполненных проверок</li>
+                </ul>
+                <p>Для начала работы перейдите в <a href="{ping_url}">раздел Ping сервиса</a></p>
+                <hr>
+                <p>С уважением,<br>Команда ProjectX2</p>
+                '''
+            }
         
         send_email(
             to=current_user.email,
@@ -653,6 +944,7 @@ def connect_service(service_id):
         )
         
         flash(f'Услуга "{service.name}" успешно подключена! Проверьте указанную почту для подробностей.', 'success')
+        
     except Exception as e:
         db.session.rollback()
         flash(f'Ошибка при подключении услуги: {str(e)}', 'error')
@@ -1308,6 +1600,149 @@ def execute_ping():
         )
         
         return jsonify({'success': False, 'message': f'Ошибка выполнения: {str(e)}. Проверьте почту для подробностей.'}), 500
+    
+# маршруты для управления погодой
+@app.route('/client/weather/set_city', methods=['POST'])
+@login_required
+def set_weather_city():
+    """Установка города для слежки за погодой"""
+    if current_user.role != 'client':
+        return jsonify({'success': False, 'message': 'Доступ запрещен'}), 403
+    
+    city = request.form.get('city', '').strip()
+    
+    if not city:
+        return jsonify({'success': False, 'message': 'Введите город'}), 400
+    
+    # Проверяем, подключена ли услуга погоды
+    weather_service = Service.query.filter_by(name='Слежка за погодой').first()
+    if not weather_service:
+        return jsonify({'success': False, 'message': 'Услуга не найдена'}), 404
+    
+    user_has_service = UserService.query.filter_by(
+        user_id=current_user.id, 
+        service_id=weather_service.id
+    ).first()
+    
+    if not user_has_service:
+        return jsonify({'success': False, 'message': 'Услуга не подключена'}), 403
+    
+    try:
+        # Проверяем, существует ли уже мониторинг для этого города
+        weather_monitor = WeatherMonitor.query.filter_by(
+            user_id=current_user.id,
+            city=city
+        ).first()
+        
+        if not weather_monitor:
+            weather_monitor = WeatherMonitor(
+                user_id=current_user.id,
+                city=city
+            )
+            db.session.add(weather_monitor)
+            db.session.commit()
+            
+            flash(f'Начался мониторинг погоды в городе {city}! Отчеты будут приходить ежедневно в 7:00.', 'success')
+        else:
+            flash(f'Мониторинг погоды в городе {city} уже активен.', 'info')
+            
+        return jsonify({'success': True, 'message': 'Город установлен'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/client/weather/check')
+@login_required
+def check_weather_now():
+    """Проверка погоды по требованию"""
+    if current_user.role != 'client':
+        flash('Доступ запрещен', 'error')
+        return redirect(url_for('index'))
+    
+    weather_service = Service.query.filter_by(name='Слежка за погодой').first()
+    if not weather_service:
+        flash('Услуга не найдена', 'error')
+        return redirect(url_for('client_services'))
+    
+    user_has_service = UserService.query.filter_by(
+        user_id=current_user.id, 
+        service_id=weather_service.id
+    ).first()
+    
+    if not user_has_service:
+        flash('Услуга не подключена', 'error')
+        return redirect(url_for('client_services'))
+    
+    weather_monitor = WeatherMonitor.query.filter_by(user_id=current_user.id).first()
+    
+    if not weather_monitor:
+        flash('Сначала установите город для мониторинга', 'error')
+        return redirect(url_for('client_services'))
+    
+    try:
+        weather_data = get_weather_data(weather_monitor.city)
+        
+        if weather_data['success']:
+            recommendations = generate_weather_recommendations(weather_data)
+            
+            # Отправляем email
+            template_data = {
+                'subject': f'🌤️ Проверка погоды в {weather_data["city"]} - ProjectX2',
+                'template': '''
+                <h2>Проверка погоды по вашему запросу</h2>
+                <p>Здравствуйте, {username}!</p>
+                <p>Текущая погода в <strong>{city}</strong>:</p>
+                
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                    <p><strong>🌡️ Температура:</strong> {temperature}°C (ощущается как {feels_like}°C)</p>
+                    <p><strong>💧 Влажность:</strong> {humidity}%</p>
+                    <p><strong>🌬️ Ветер:</strong> {wind_speed} м/с</p>
+                    <p><strong>☀️ УФ индекс:</strong> {uv_index}</p>
+                    <p><strong>📝 Описание:</strong> {description}</p>
+                </div>
+                
+                <h3>🎯 Рекомендации:</h3>
+                <ul>
+                    {recommendations}
+                </ul>
+                
+                <p><strong>⏰ Время проверки:</strong> {check_time}</p>
+                <hr>
+                <p>С уважением,<br>Команда ProjectX2</p>
+                '''
+            }
+            
+            recommendations_html = ''
+            if recommendations:
+                recommendations_html = ''.join([f'<li>{rec}</li>' for rec in recommendations])
+            else:
+                recommendations_html = '<li>Отличная погода! Особых рекомендаций нет.</li>'
+            
+            send_email(
+                to=current_user.email,
+                subject=template_data['subject'],
+                template=template_data['template'],
+                username=current_user.username,
+                city=weather_data['city'],
+                temperature=weather_data['temperature'],
+                feels_like=weather_data['feels_like'],
+                humidity=weather_data['humidity'],
+                wind_speed=weather_data['wind_speed'],
+                uv_index=weather_data['uv_index'],
+                description=weather_data['description'],
+                recommendations=recommendations_html,
+                check_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M')
+            )
+            
+            flash('✅ Проверка погоды выполнена! Проверьте вашу почту.', 'success')
+        else:
+            flash(f'Ошибка получения погоды: {weather_data["error"]}', 'error')
+            
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'error')
+    
+    return redirect(url_for('client_services'))
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 
 def create_tables():
@@ -1373,98 +1808,9 @@ def create_tables():
         print('👔 Заказчик: customer1 / cust123')
         print('👤 Клиент: client1 / client123 (баланс: 1000 руб.)')
 
-def check_monitored_servers():
-    """Функция для периодической проверки серверов"""
-    with app.app_context():
-        servers_to_check = ServerMonitor.query.filter(
-            ServerMonitor.last_check < datetime.utcnow() - timedelta(minutes=5)
-        ).all()
-        
-        for server in servers_to_check:
-            try:
-                import platform
-                import subprocess
-                
-                param = '-n' if platform.system().lower() == 'windows' else '-c'
-                command = ['ping', param, '4', server.ip_address]
-                
-                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
-                is_online = result.returncode == 0
-                
-                # Если статус изменился
-                if server.is_online != is_online:
-                    server.is_online = is_online
-                    server.last_notification = datetime.utcnow()
-                    
-                    # Отправляем мгновенное уведомление о смене статуса
-                    template_data = {
-                        'subject': '⚠️ Изменение статуса сервера - ProjectX2' if not is_online else '✅ Сервер доступен - ProjectX2',
-                        'template': '''
-                        <h2>{title}</h2>
-                        <p>Здравствуйте, {username}!</p>
-                        <p>Статус сервера <strong>{ip_address}</strong> изменился.</p>
-                        <p><strong>Новый статус:</strong> {status}</p>
-                        <p><strong>Время изменения:</strong> {change_time}</p>
-                        <p><strong>Результат ping:</strong></p>
-                        <pre>{ping_result}</pre>
-                        <hr>
-                        <p>С уважением,<br>Команда ProjectX2</p>
-                        '''
-                    }
-                    
-                    send_email(
-                        to=server.user.email,
-                        subject=template_data['subject'],
-                        template=template_data['template'],
-                        username=server.user.username,
-                        ip_address=server.ip_address,
-                        title='Сервер стал недоступен' if not is_online else 'Сервер снова доступен',
-                        status='Недоступен ❌' if not is_online else 'Доступен ✅',
-                        change_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
-                        ping_result=result.stdout if result.returncode == 0 else result.stderr
-                    )
-                
-                # Ежечасное уведомление о доступности
-                elif (server.last_notification is None or 
-                      server.last_notification < datetime.utcnow() - timedelta(hours=1)):
-                    if server.is_online:
-                        template_data = {
-                            'subject': '📊 Сервер доступен - ProjectX2',
-                            'template': '''
-                            <h2>Сервер доступен</h2>
-                            <p>Здравствуйте, {username}!</p>
-                            <p>Сервер <strong>{ip_address}</strong> работает стабильно.</p>
-                            <p><strong>Статус:</strong> Доступен ✅</p>
-                            <p><strong>Последняя проверка:</strong> {check_time}</p>
-                            <p><strong>Результат ping:</strong></p>
-                            <pre>{ping_result}</pre>
-                            <hr>
-                            <p>С уважением,<br>Команда ProjectX2</p>
-                            '''
-                        }
-                        
-                        send_email(
-                            to=server.user.email,
-                            subject=template_data['subject'],
-                            template=template_data['template'],
-                            username=server.user.username,
-                            ip_address=server.ip_address,
-                            check_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
-                            ping_result=result.stdout
-                        )
-                    
-                    server.last_notification = datetime.utcnow()
-                
-                server.last_check = datetime.utcnow()
-                db.session.commit()
-                
-            except Exception as e:
-                app.logger.error(f'Ошибка проверки сервера {server.ip_address}: {str(e)}')
 
-# Инициализация планировщика
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=check_monitored_servers, trigger="interval", minutes=5)
-scheduler.start()
+
+
 
 # Остановка планировщика при выходе
 atexit.register(lambda: scheduler.shutdown())

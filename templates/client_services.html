@@ -21,10 +21,14 @@
                     <div class="service-header">
                         <h4>{{ service.name }}</h4>
                         
-                        <!-- Шестерёнка вместо цены при подключении Ping сервера -->
+                        <!-- Шестерёнка для Ping сервера или кнопка для погоды -->
                         {% if service.name == 'Пинг сервера' and service.id in connected_service_ids %}
                             <a href="{{ url_for('ping_service') }}" class="gear-icon" title="Перейти к Ping сервису">
                                 🛠️
+                            </a>
+                        {% elif service.name == 'Слежка за погодой' and service.id in connected_service_ids %}
+                            <a href="{{ url_for('check_weather_now') }}" class="btn btn-sm btn-info weather-btn">
+                                🌤️ Проверить погоду
                             </a>
                         {% else %}
                             <span class="service-price">💰 {{ service.price }} руб.</span>
@@ -69,7 +73,6 @@
 
     <div class="admin-actions">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
-        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
     </div>
 </div>
 
@@ -91,9 +94,11 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-/* Стили для скрытия элемента */
-.hidden {
-    display: none !important; /* Используем important для приоритета :cite[2]:cite[5] */
+/* Стили для кнопки погоды */
+.weather-btn {
+    font-size: 14px;
+    padding: 6px 12px;
+    margin: 0;
 }
 
 /* Остальные стили услуг */
@@ -203,6 +208,11 @@
     .gear-icon {
         font-size: 20px;
         padding: 6px;
+    }
+    
+    .weather-btn {
+        font-size: 12px;
+        padding: 4px 8px;
     }
 }
 </style>
