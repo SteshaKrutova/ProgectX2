@@ -3,73 +3,74 @@
 {% block title %}Добавить пользователя - ProjectX2{% endblock %}
 
 {% block content %}
-<div class="admin-container">
-    <div class="admin-header">
-        <h2>👑 Добавление пользователя</h2>
-        <p class="admin-subtitle">Создание нового пользователя системы</p>
-    </div>
+<div class="admin-container" style="display: flex; justify-content: center; align-items: center; min-height: 80vh;">
+    <div style="max-width: 500px; width: 100%;">
+        <div class="admin-header" style="text-align: center;">
+            <h2> Добавление пользователя</h2>
+            <p class="admin-subtitle">Создание нового пользователя системы</p>
+        </div>
 
-    <div class="auth-card">
-        <form method="POST" action="{{ url_for('admin_add_user') }}" class="auth-form">
-            <div class="form-group">
-                <label for="username">Имя пользователя:</label>
-                <input type="text" id="username" name="username" class="form-input" required 
-                       placeholder="Введите имя пользователя" minlength="3">
-            </div>
+        <div class="auth-card" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);">
+            <form method="POST" action="{{ url_for('admin_add_user') }}" class="auth-form">
+                <div class="form-group">
+                    <label for="username">Имя пользователя:</label>
+                    <input type="text" id="username" name="username" class="form-input" required 
+                           placeholder="Введите имя пользователя" minlength="3">
+                </div>
 
-            <div class="form-group">
-                <label for="email">Email:</label>
-                <input type="email" id="email" name="email" class="form-input" required 
-                       placeholder="Введите email">
-            </div>
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" class="form-input" required 
+                           placeholder="Введите email">
+                </div>
 
-            <div class="form-group">
-                <label for="password">Пароль:</label>
-                <input type="password" id="password" name="password" class="form-input" required 
-                       placeholder="Введите пароль" minlength="6">
-            </div>
+                <div class="form-group">
+                    <label for="password">Пароль:</label>
+                    <input type="password" id="password" name="password" class="form-input" required 
+                           placeholder="Введите пароль" minlength="6">
+                </div>
 
-            <div class="form-group">
-                <label for="password_confirm">Подтверждение пароля:</label>
-                <input type="password" id="password_confirm" name="password_confirm" class="form-input" required 
-                       placeholder="Повторите пароль">
-            </div>
+                <div class="form-group">
+                    <label for="password_confirm">Подтверждение пароля:</label>
+                    <input type="password" id="password_confirm" name="password_confirm" class="form-input" required 
+                           placeholder="Повторите пароль">
+                </div>
 
-            <div class="form-group">
-                <label for="role">Роль:</label>
-                <select id="role" name="role" class="form-input" required>
-                    <option value="">Выберите роль</option>
-                    <option value="client">Клиент</option>
-                    <option value="customer">Заказчик</option>
-                    <option value="admin">Администратор</option>
-                </select>
-            </div>
+                <div class="form-group">
+                    <label for="role">Роль:</label>
+                    <select id="role" name="role" class="form-input" required>
+                        <option value="">Выберите роль</option>
+                        <option value="client">Клиент</option>
+                        <option value="customer">Заказчик</option>
+                        <option value="admin">Администратор</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="balance">Начальный баланс (для клиентов):</label>
-                <input type="number" id="balance" name="balance" class="form-input" 
-                       step="0.01" min="0" value="0" placeholder="0.00">
-            </div>
+                <div class="form-group">
+                    <label for="balance">Начальный баланс (для клиентов):</label>
+                    <input type="number" id="balance" name="balance" class="form-input" 
+                           step="0.01" min="0" value="0" placeholder="0.00">
+                </div>
 
-            <button type="submit" class="btn btn-primary btn-full">Создать пользователя</button>
-        </form>
-    </div>
+                <button type="submit" class="btn btn-primary btn-full" style="width: 100%;">Создать пользователя</button>
+            </form>
+        </div>
 
-    <style>
-        .btn-success {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-        }
+        <style>
+            .btn-success {
+                background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                color: white;
+            }
 
-        .btn-success:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
-        }
-    </style>
+            .btn-success:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            }
+        </style>
 
-    <div class="admin-actions">
-        <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">← Назад к пользователям</a>
-        <a href="{{ url_for('index') }}" class="btn btn-info">🏠 На главную</a>
+        <div class="admin-actions" style="text-align: center; margin-top: 20px;">
+            <a href="{{ url_for('admin_users') }}" class="btn btn-secondary">← Назад к пользователям</a>
+        </div>
     </div>
 </div>
 {% endblock %}

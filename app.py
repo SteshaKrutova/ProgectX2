@@ -1,3 +1,4 @@
+import atexit
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -7,6 +8,7 @@ from datetime import datetime
 from flask_mail import Mail, Message
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta  # Добавьте timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -29,6 +31,7 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Пожалуйста, войдите в систему'
+
 
 # Функция отправки email
 def send_email(to, subject, template, **kwargs):
@@ -195,6 +198,32 @@ class PromoCode(db.Model):
 
     def __repr__(self):
         return f'<PromoCode {self.code} - {self.amount} руб.>'
+    
+class PingHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv6 поддерживает до 45 символов
+    result = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('ping_history', lazy=True))
+
+    def __repr__(self):
+        return f'<PingHistory {self.ip_address} by User {self.user_id}>'
+    
+class ServerMonitor(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    is_online = db.Column(db.Boolean, default=True)
+    last_check = db.Column(db.DateTime, default=datetime.utcnow)
+    last_notification = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref=db.backref('monitored_servers', lazy=True))
+
+    def __repr__(self):
+        return f'<ServerMonitor {self.ip_address} - {"Online" if self.is_online else "Offline"}>'
 
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
@@ -549,7 +578,7 @@ def client_services():
 @app.route('/client/service/connect/<int:service_id>')
 @login_required
 def connect_service(service_id):
-    """Подключение услуги клиентом"""
+    """Подключение услуги клиентом с отправкой уведомления"""
     if current_user.role != 'client':
         flash('Доступ запрещен. Только для клиентов.', 'error')
         return redirect(url_for('index'))
@@ -588,8 +617,29 @@ def connect_service(service_id):
         db.session.add(user_service)
         db.session.commit()
         
-        # Отправляем email уведомление :cite[7]
-        template_data = EMAIL_TEMPLATES['service_connected']
+        # Отправляем email уведомление о подключении услуги
+        template_data = {
+            'subject': '🎉 Услуга подключена - ProjectX2',
+            'template': '''
+            <h2>Услуга успешно подключена!</h2>
+            <p>Здравствуйте, {username}!</p>
+            <p>Вы подключили услугу: <strong>"{service_name}"</strong></p>
+            <p><strong>Стоимость:</strong> {price} руб.</p>
+            <p><strong>Описание:</strong> {description}</p>
+            <p><strong>Дата подключения:</strong> {connection_date}</p>
+            <h3>📋 Возможности услуги:</h3>
+            <ul>
+                <li>🔍 Ping любых IP-адресов и доменов</li>
+                <li>📊 Мониторинг доступности серверов</li>
+                <li>📧 Уведомления о статусе серверов</li>
+                <li>📋 История выполненных проверок</li>
+            </ul>
+            <p>Для начала работы перейдите в <a href="{ping_url}">раздел Ping сервиса</a></p>
+            <hr>
+            <p>С уважением,<br>Команда ProjectX2</p>
+            '''
+        }
+        
         send_email(
             to=current_user.email,
             subject=template_data['subject'],
@@ -597,11 +647,12 @@ def connect_service(service_id):
             username=current_user.username,
             service_name=service.name,
             price=service.price,
+            description=service.description,
             connection_date=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
-            description=service.description
+            ping_url=url_for('ping_service', _external=True)
         )
         
-        flash(f'Услуга "{service.name}" успешно подключена!', 'success')
+        flash(f'Услуга "{service.name}" успешно подключена! Проверьте указанную почту для подробностей.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Ошибка при подключении услуги: {str(e)}', 'error')
@@ -999,6 +1050,264 @@ def delete_promo_code(promo_id):
         flash(f'Ошибка при удалении промокода: {str(e)}', 'error')
     
     return redirect(url_for('customer_promo_codes'))
+
+#Создадим маршруты для услуги Ping
+@app.route('/client/ping')
+@login_required
+def ping_service():
+    """Страница услуги Ping"""
+    if current_user.role != 'client':
+        flash('Доступ запрещен. Только для клиентов.', 'error')
+        return redirect(url_for('index'))
+    
+    # Проверяем, подключена ли услуга Ping у пользователя
+    ping_service = Service.query.filter_by(name='Пинг сервера').first()
+    if not ping_service:
+        flash('Услуга "Пинг сервера" не найдена в системе', 'error')
+        return redirect(url_for('client_services'))
+    
+    user_has_service = UserService.query.filter_by(
+        user_id=current_user.id, 
+        service_id=ping_service.id
+    ).first()
+    
+    if not user_has_service:
+        flash('У вас не подключена услуга "Пинг сервера"', 'error')
+        return redirect(url_for('client_services'))
+    
+    # Получаем историю пингов пользователя
+    ping_history = PingHistory.query.filter_by(user_id=current_user.id)\
+        .order_by(PingHistory.created_at.desc())\
+        .limit(10)\
+        .all()
+    
+    return render_template('ping_service.html', 
+                         ping_history=ping_history,
+                         user=current_user)
+
+@app.route('/client/ping/execute', methods=['POST'])
+@login_required
+def execute_ping():
+    """Выполнение ping команды и мониторинг сервера с отправкой уведомления"""
+    if current_user.role != 'client':
+        return jsonify({'success': False, 'message': 'Доступ запрещен'}), 403
+    
+    ip_address = request.form.get('ip_address', '').strip()
+    
+    if not ip_address:
+        return jsonify({'success': False, 'message': 'Введите IP-адрес'}), 400
+    
+    # Валидация IP-адреса
+    try:
+        import socket
+        socket.inet_pton(socket.AF_INET, ip_address)
+    except socket.error:
+        try:
+            socket.inet_pton(socket.AF_INET6, ip_address)
+        except socket.error:
+            # Проверяем, может быть это домен
+            try:
+                socket.gethostbyname(ip_address)
+            except socket.error:
+                return jsonify({'success': False, 'message': 'Неверный формат IP-адреса или домена'}), 400
+    
+    try:
+        # Выполняем ping с правильной кодировкой
+        import platform
+        import subprocess
+        
+        param = '-n' if platform.system().lower() == 'windows' else '-c'
+        command = ['ping', param, '4', ip_address]
+        
+        # Устанавливаем правильную кодировку для Windows
+        if platform.system().lower() == 'windows':
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10, encoding='cp866')
+        else:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10, encoding='utf-8')
+        
+        is_online = result.returncode == 0
+        ping_result = result.stdout if is_online else result.stderr
+        
+        # Конвертируем результат в английский если нужно (для Windows)
+        if platform.system().lower() == 'windows' and 'ЋвўҐв' in ping_result:
+            # Простая замена русских фраз на английские
+            ping_result = ping_result.replace('ЋвўҐв ®в', 'Reply from')
+            ping_result = ping_result.replace('зЁб«® Ў ©в=', 'bytes=')
+            ping_result = ping_result.replace('ўаҐ¬п=', 'time=')
+            ping_result = ping_result.replace('¬б', 'ms')
+            ping_result = ping_result.replace('‘в вЁбвЁЄ Ping', 'Ping statistics')
+            ping_result = ping_result.replace('Џ ЄҐв®ў: ®вЇа ў«Ґ® =', 'Packets: Sent =')
+            ping_result = ping_result.replace('Ї®«гзҐ® =', 'Received =')
+            ping_result = ping_result.replace('Ї®вҐап® =', 'Lost =')
+            ping_result = ping_result.replace('ЏаЁЎ«Ё§ЁвҐ«м®Ґ ўаҐ¬п ЇаЁҐ¬ -ЇҐаҐ¤ зЁ ў ¬б:', 'Approximate round trip times in milli-seconds:')
+            ping_result = ping_result.replace('ЊЁЁ¬ «м®Ґ =', 'Minimum =')
+            ping_result = ping_result.replace('Њ ЄбЁ¬ «м®Ґ =', 'Maximum =')
+            ping_result = ping_result.replace('‘аҐ¤ҐҐ =', 'Average =')
+            ping_result = ping_result.replace('¬бҐЄ', 'ms')
+        
+        # Сохраняем результат в историю
+        ping_record = PingHistory(
+            user_id=current_user.id,
+            ip_address=ip_address,
+            result=ping_result
+        )
+        db.session.add(ping_record)
+        
+        # Отправляем email уведомление о результате ping
+        template_data = {
+            'subject': '✅ Ping выполнен успешно - ProjectX2' if is_online else '❌ Ping не удался - ProjectX2',
+            'template': '''
+            <h2>Результат выполнения Ping</h2>
+            <p>Здравствуйте, {username}!</p>
+            <p>Результат ping для <strong>{ip_address}</strong>:</p>
+            <p><strong>Статус:</strong> {status}</p>
+            <p><strong>Время выполнения:</strong> {ping_time}</p>
+            <p><strong>Результат:</strong></p>
+            <pre style="background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto;">{ping_result}</pre>
+            <p><strong>Команда:</strong> {command}</p>
+            <hr>
+            <p>С уважением,<br>Команда ProjectX2</p>
+            '''
+        }
+        
+        send_email(
+            to=current_user.email,
+            subject=template_data['subject'],
+            template=template_data['template'],
+            username=current_user.username,
+            ip_address=ip_address,
+            status='Доступен ✅' if is_online else 'Недоступен ❌',
+            ping_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M:%S'),
+            ping_result=ping_result,
+            command=' '.join(command)
+        )
+        
+        # Проверяем, мониторится ли уже этот сервер
+        server_monitor = ServerMonitor.query.filter_by(
+            user_id=current_user.id,
+            ip_address=ip_address
+        ).first()
+        
+        if not server_monitor:
+            # Первое добавление сервера для мониторинга
+            server_monitor = ServerMonitor(
+                user_id=current_user.id,
+                ip_address=ip_address,
+                is_online=is_online,
+                last_notification=datetime.utcnow() if not is_online else None
+            )
+            db.session.add(server_monitor)
+            
+            # Отправляем письмо о начале мониторинга
+            monitor_template = {
+                'subject': '🚀 Начало мониторинга сервера - ProjectX2',
+                'template': '''
+                <h2>Мониторинг сервера активирован!</h2>
+                <p>Здравствуйте, {username}!</p>
+                <p>Мы начали мониторить сервер <strong>{ip_address}</strong>.</p>
+                <p><strong>Статус:</strong> {status}</p>
+                <p><strong>Дата начала мониторинга:</strong> {start_date}</p>
+                <p>Вы будете получать уведомления:</p>
+                <ul>
+                    <li>📧 Ежечасно о доступности сервера</li>
+                    <li>⚠️ Мгновенно при недоступности сервера</li>
+                    <li>📋 После каждого выполненного ping</li>
+                </ul>
+                <hr>
+                <p>С уважением,<br>Команда ProjectX2</p>
+                '''
+            }
+            
+            send_email(
+                to=current_user.email,
+                subject=monitor_template['subject'],
+                template=monitor_template['template'],
+                username=current_user.username,
+                ip_address=ip_address,
+                status='Доступен' if is_online else 'Недоступен',
+                start_date=datetime.utcnow().strftime('%d.%m.%Y %H:%M')
+            )
+            
+            flash('✅ Проверьте указанную почту! Начался мониторинг сервера.', 'success')
+        
+        else:
+            # Обновляем статус существующего мониторинга
+            server_monitor.is_online = is_online
+            server_monitor.last_check = datetime.utcnow()
+        
+        db.session.commit()
+        
+        if is_online:
+            return jsonify({
+                'success': True, 
+                'result': ping_result,
+                'message': 'Ping выполнен успешно. Проверьте почту для подробностей.'
+            })
+        else:
+            return jsonify({
+                'success': False, 
+                'result': ping_result,
+                'message': 'Ping не удался. Проверьте почту для подробностей.'
+            })
+            
+    except subprocess.TimeoutExpired:
+        # Отправляем уведомление о таймауте
+        timeout_template = {
+            'subject': '⏰ Таймаут выполнения Ping - ProjectX2',
+            'template': '''
+            <h2>Таймаут выполнения Ping</h2>
+            <p>Здравствуйте, {username}!</p>
+            <p>Ping для <strong>{ip_address}</strong> превысил время ожидания.</p>
+            <p><strong>Время выполнения:</strong> {ping_time}</p>
+            <p><strong>Статус:</strong> Таймаут ⏰</p>
+            <p>Возможные причины:</p>
+            <ul>
+                <li>Сервер не отвечает</li>
+                <li>Проблемы с сетью</li>
+                <li>Блокировка ICMP запросов</li>
+            </ul>
+            <hr>
+            <p>С уважением,<br>Команда ProjectX2</p>
+            '''
+        }
+        
+        send_email(
+            to=current_user.email,
+            subject=timeout_template['subject'],
+            template=timeout_template['template'],
+            username=current_user.username,
+            ip_address=ip_address,
+            ping_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M:%S')
+        )
+        
+        return jsonify({'success': False, 'message': 'Таймаут выполнения ping. Проверьте почту для подробностей.'}), 408
+        
+    except Exception as e:
+        # Отправляем уведомление об ошибке
+        error_template = {
+            'subject': '❌ Ошибка выполнения Ping - ProjectX2',
+            'template': '''
+            <h2>Ошибка выполнения Ping</h2>
+            <p>Здравствуйте, {username}!</p>
+            <p>При выполнении ping для <strong>{ip_address}</strong> произошла ошибка.</p>
+            <p><strong>Время выполнения:</strong> {ping_time}</p>
+            <p><strong>Ошибка:</strong> {error_message}</p>
+            <hr>
+            <p>С уважением,<br>Команда ProjectX2</p>
+            '''
+        }
+        
+        send_email(
+            to=current_user.email,
+            subject=error_template['subject'],
+            template=error_template['template'],
+            username=current_user.username,
+            ip_address=ip_address,
+            ping_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M:%S'),
+            error_message=str(e)
+        )
+        
+        return jsonify({'success': False, 'message': f'Ошибка выполнения: {str(e)}. Проверьте почту для подробностей.'}), 500
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 
 def create_tables():
@@ -1021,6 +1330,11 @@ def create_tables():
             
             # Создаем стандартные услуги
             services = [
+                {
+                    'name': 'Пинг сервера',
+                    'description': 'Мониторинг доступности серверов с отправкой уведомлений о простоях. Возможность ping любых IP-адресов и доменов.',
+                    'price': 299.99
+                },
                 {
                     'name': 'Пинг сервера',
                     'description': 'Мониторинг доступности серверов с отправкой уведомлений о простоях',
@@ -1058,6 +1372,102 @@ def create_tables():
         print('👑 Администратор: admin / admin123')
         print('👔 Заказчик: customer1 / cust123')
         print('👤 Клиент: client1 / client123 (баланс: 1000 руб.)')
+
+def check_monitored_servers():
+    """Функция для периодической проверки серверов"""
+    with app.app_context():
+        servers_to_check = ServerMonitor.query.filter(
+            ServerMonitor.last_check < datetime.utcnow() - timedelta(minutes=5)
+        ).all()
+        
+        for server in servers_to_check:
+            try:
+                import platform
+                import subprocess
+                
+                param = '-n' if platform.system().lower() == 'windows' else '-c'
+                command = ['ping', param, '4', server.ip_address]
+                
+                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                is_online = result.returncode == 0
+                
+                # Если статус изменился
+                if server.is_online != is_online:
+                    server.is_online = is_online
+                    server.last_notification = datetime.utcnow()
+                    
+                    # Отправляем мгновенное уведомление о смене статуса
+                    template_data = {
+                        'subject': '⚠️ Изменение статуса сервера - ProjectX2' if not is_online else '✅ Сервер доступен - ProjectX2',
+                        'template': '''
+                        <h2>{title}</h2>
+                        <p>Здравствуйте, {username}!</p>
+                        <p>Статус сервера <strong>{ip_address}</strong> изменился.</p>
+                        <p><strong>Новый статус:</strong> {status}</p>
+                        <p><strong>Время изменения:</strong> {change_time}</p>
+                        <p><strong>Результат ping:</strong></p>
+                        <pre>{ping_result}</pre>
+                        <hr>
+                        <p>С уважением,<br>Команда ProjectX2</p>
+                        '''
+                    }
+                    
+                    send_email(
+                        to=server.user.email,
+                        subject=template_data['subject'],
+                        template=template_data['template'],
+                        username=server.user.username,
+                        ip_address=server.ip_address,
+                        title='Сервер стал недоступен' if not is_online else 'Сервер снова доступен',
+                        status='Недоступен ❌' if not is_online else 'Доступен ✅',
+                        change_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
+                        ping_result=result.stdout if result.returncode == 0 else result.stderr
+                    )
+                
+                # Ежечасное уведомление о доступности
+                elif (server.last_notification is None or 
+                      server.last_notification < datetime.utcnow() - timedelta(hours=1)):
+                    if server.is_online:
+                        template_data = {
+                            'subject': '📊 Сервер доступен - ProjectX2',
+                            'template': '''
+                            <h2>Сервер доступен</h2>
+                            <p>Здравствуйте, {username}!</p>
+                            <p>Сервер <strong>{ip_address}</strong> работает стабильно.</p>
+                            <p><strong>Статус:</strong> Доступен ✅</p>
+                            <p><strong>Последняя проверка:</strong> {check_time}</p>
+                            <p><strong>Результат ping:</strong></p>
+                            <pre>{ping_result}</pre>
+                            <hr>
+                            <p>С уважением,<br>Команда ProjectX2</p>
+                            '''
+                        }
+                        
+                        send_email(
+                            to=server.user.email,
+                            subject=template_data['subject'],
+                            template=template_data['template'],
+                            username=server.user.username,
+                            ip_address=server.ip_address,
+                            check_time=datetime.utcnow().strftime('%d.%m.%Y %H:%M'),
+                            ping_result=result.stdout
+                        )
+                    
+                    server.last_notification = datetime.utcnow()
+                
+                server.last_check = datetime.utcnow()
+                db.session.commit()
+                
+            except Exception as e:
+                app.logger.error(f'Ошибка проверки сервера {server.ip_address}: {str(e)}')
+
+# Инициализация планировщика
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=check_monitored_servers, trigger="interval", minutes=5)
+scheduler.start()
+
+# Остановка планировщика при выходе
+atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
     create_tables()

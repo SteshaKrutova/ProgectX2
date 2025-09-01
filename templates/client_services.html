@@ -6,18 +6,29 @@
 <div class="admin-container">
     <div class="admin-header">
         <h2>👤 Мои услуги</h2>
+        <div class="balance-info">
+            <span class="balance-amount">Текущий баланс: {{ current_user.balance }} руб.</span>
+        </div>
     </div>
 
     <!-- Услуги -->
-    <div class="services-section" style="margin-top: 20px;">
-        <h3>Услуги</h3>
+    <div class="services-section">
+        <h3>📦 Услуги</h3>
         {% if services %}
             <div class="services-grid">
                 {% for service in services %}
                 <div class="service-card">
                     <div class="service-header">
                         <h4>{{ service.name }}</h4>
-                        <span class="service-price">💰 {{ service.price }} руб.</span>
+                        
+                        <!-- Шестерёнка вместо цены при подключении Ping сервера -->
+                        {% if service.name == 'Пинг сервера' and service.id in connected_service_ids %}
+                            <a href="{{ url_for('ping_service') }}" class="gear-icon" title="Перейти к Ping сервису">
+                                🛠️
+                            </a>
+                        {% else %}
+                            <span class="service-price">💰 {{ service.price }} руб.</span>
+                        {% endif %}
                     </div>
                     
                     <p class="service-description">{{ service.description }}</p>
@@ -38,9 +49,9 @@
                                 </a>
                             {% else %}
                                 <span class="text-danger">Недостаточно средств</span>
-                                <button class="btn btn-sm btn-success" onclick="showAddBalanceModal()">
+                                <a href="{{ url_for('add_balance_page') }}" class="btn btn-sm btn-success">
                                     Пополнить баланс
-                                </button>
+                                </a>
                             {% endif %}
                         {% endif %}
                     </div>
@@ -56,60 +67,143 @@
         {% endif %}
     </div>
 
-    <!-- Модальное окно пополнения баланса -->
-    <div id="addBalanceModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h3>Пополнение баланса</h3>
-            <form onsubmit="addBalance(event)">
-                <div class="form-group">
-                    <label>Сумма пополнения:</label>
-                    <input type="number" step="0.01" min="1" required 
-                           class="form-input" placeholder="Введите сумму">
-                </div>
-                <div class="modal-actions">
-                    <button type="submit" class="btn btn-success">Пополнить</button>
-                    <button type="button" class="btn btn-secondary" 
-                            onclick="document.getElementById('addBalanceModal').style.display='none'">
-                        Отмена
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div class="admin-actions" style="margin-top: 20px;">
+    <div class="admin-actions">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
+        <a href="{{ url_for('profile') }}" class="btn btn-info">👤 Мой профиль</a>
     </div>
 </div>
 
-<script>
-function showAddBalanceModal() {
-    document.getElementById('addBalanceModal').style.display = 'block';
+<style>
+/* Стили для шестерёнки */
+.gear-icon {
+    font-size: 24px;
+    text-decoration: none;
+    padding: 8px;
+    border-radius: 50%;
+    background: rgba(255, 193, 7, 0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
 }
 
-function addBalance(event) {
-    event.preventDefault();
-    const amount = event.target.querySelector('input').value;
-    
-    fetch('{{ url_for("add_balance") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'amount=' + encodeURIComponent(amount)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Ошибка: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('Ошибка сети: ' + error);
-    });
+.gear-icon:hover {
+    background: rgba(255, 193, 7, 0.4);
+    transform: rotate(45deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
-</script>
+
+/* Стили для скрытия элемента */
+.hidden {
+    display: none !important; /* Используем important для приоритета :cite[2]:cite[5] */
+}
+
+/* Остальные стили услуг */
+.services-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.service-card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    position: relative;
+}
+
+.service-card:hover {
+    transform: translateY(-2px);
+}
+
+.service-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.service-header h4 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.service-price {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+.service-description {
+    color: #6c757d;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.service-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.badge.connected {
+    background: #d4edda;
+    color: #155724;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+}
+
+.text-danger {
+    color: #dc3545;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.empty-icon {
+    font-size: 64px;
+    margin-bottom: 15px;
+}
+
+.empty-state h4 {
+    color: #6c757d;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: #adb5bd;
+    margin-bottom: 20px;
+}
+
+.admin-actions {
+    margin-top: 30px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .services-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .service-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .admin-actions {
+        flex-direction: column;
+    }
+    
+    .gear-icon {
+        font-size: 20px;
+        padding: 6px;
+    }
+}
+</style>
 {% endblock %}

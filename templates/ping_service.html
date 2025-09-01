@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Пинг сервера - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>📡 Пинг сервера</h2>
+        <p class="admin-subtitle">Проверка доступности сетевых узлов</p>
+    </div>
+
+    <div class="ping-section">
+        <div class="ping-form-card">
+            <h3>🔍 Выполнить ping</h3>
+            <form id="pingForm" class="auth-form">
+                <div class="form-group">
+                    <label for="ip_address">IP-адрес или домен:</label>
+                    <input type="text" id="ip_address" name="ip_address" class="form-input" required 
+                           placeholder="Например: 8.8.8.8 или google.com" pattern="^[a-zA-Z0-9.-]+$">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-full">
+                    🚀 Выполнить ping
+                </button>
+            </form>
+        </div>
+
+        <div class="ping-result-card" id="pingResult" style="display: none;">
+            <h3>📊 Результат ping</h3>
+            <div class="result-content">
+                <pre id="resultOutput" style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto;"></pre>
+            </div>
+        </div>
+
+        {% if ping_history %}
+        <div class="ping-history-card">
+            <h3>📋 История пингов</h3>
+            <div class="history-list">
+                {% for ping in ping_history %}
+                <div class="history-item">
+                    <div class="history-header">
+                        <strong>{{ ping.ip_address }}</strong>
+                        <span class="history-date">{{ ping.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                    </div>
+                    <pre class="history-result">{{ ping.result|truncate(100) }}</pre>
+                    <button class="btn btn-sm btn-info view-result-btn" 
+                            onclick="showFullResult('{{ ping.ip_address }}', `{{ ping.result|replace('`', '&#96;') }}`)">
+                        📄 Показать полностью
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('client_services') }}" class="btn btn-secondary">← К услугам</a>
+        <a href="{{ url_for('index') }}" class="btn btn-info">🏠 На главную</a>
+    </div>
+</div>
+
+<!-- Модальное окно для полного результата -->
+<div id="resultModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h3 id="modalTitle">Результат ping</h3>
+        <pre id="modalResult" style="background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; max-height: 400px;"></pre>
+        <button class="btn btn-secondary" onclick="closeModal()">Закрыть</button>
+    </div>
+</div>
+
+<style>
+.ping-section {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.ping-form-card, .ping-result-card, .ping-history-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.history-item {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.history-date {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.history-result {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
+
+.view-result-btn {
+    margin-top: 5px;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+</style>
+
+<script>
+document.getElementById('pingForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    
+    submitBtn.textContent = '⏳ Выполняется...';
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('{{ url_for("execute_ping") }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('resultOutput').textContent = data.result;
+            document.getElementById('pingResult').style.display = 'block';
+        } else {
+            alert('Ошибка: ' + data.message);
+        }
+    } catch (error) {
+        alert('Ошибка сети: ' + error);
+    } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+});
+
+function showFullResult(ip, result) {
+    document.getElementById('modalTitle').textContent = 'Результат ping: ' + ip;
+    document.getElementById('modalResult').textContent = result;
+    document.getElementById('resultModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('resultModal').style.display = 'none';
+}
+
+// Закрытие модального окна по клику вне его
+document.addEventListener('click', function(e) {
+    if (e.target.id === 'resultModal') {
+        closeModal();
+    }
+});
+</script>
+{% endblock %}
