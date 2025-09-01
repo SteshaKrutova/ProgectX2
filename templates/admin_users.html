@@ -20,12 +20,8 @@
                 <div class="stat-label">Клиентов</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">{{ users|selectattr('role', 'equalto', 'customer')|list|length }}</div>
-                <div class="stat-label">Заказчиков</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</div>
-                <div class="stat-label">Администраторов</div>
+                <div class="stat-number">0</div>
+                <div class="stat-label">Онлайн сейчас</div>
             </div>
         </div>
     </div>
@@ -35,7 +31,11 @@
             <h3>📋 Список всех пользователей</h3>
             
             <div class="table-actions">
-                <input type="text" id="searchUsers" placeholder="Поиск пользователей..." class="search-input">
+                <select id="filterStatus" class="filter-select">
+                    <option value="all">Все статусы</option>
+                    <option value="active">Только активные</option>
+                    <option value="inactive">Только заблокированные</option>
+                </select>
             </div>
         </div>
 
@@ -54,10 +54,13 @@
                 </thead>
                 <tbody>
                     {% for user in users %}
-                    <tr class="user-row">
+                    <tr class="user-row" data-status="{{ 'active' if user.is_active else 'inactive' }}">
                         <td class="user-id">{{ user.id }}</td>
                         <td class="user-username">
                             <strong>{{ user.username }}</strong>
+                            {% if not user.is_active %}
+                            <br><small style="color: #dc3545;">🔒 Заблокирован</small>
+                            {% endif %}
                         </td>
                         <td class="user-email">{{ user.email }}</td>
                         <td class="user-role">
@@ -74,28 +77,29 @@
                         <td class="user-created">{{ user.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                         <td class="user-status">
                             <span class="status-{{ 'active' if user.is_active else 'inactive' }}">
-                                {{ 'Активен' if user.is_active else 'Неактивен' }}
+                                {{ 'Активен' if user.is_active else 'Заблокирован' }}
                             </span>
                         </td>
                         <td class="user-actions">
-                            <button class="btn btn-sm btn-info" onclick="viewUser({{ user.id }})">👁️</button>
-                            <button class="btn btn-sm btn-warning" onclick="editUser({{ user.id }})">✏️</button>
                             {% if user.id != current_user.id %}
-                                <button class="btn btn-sm btn-{{ 'success' if not user.is_active else 'danger' }}"
-                                        onclick="toggleUser({{ user.id }})">
-                                    {{ 'Активировать' if not user.is_active else 'Деактивировать' }}
-                                </button>
+                                <a href="{{ url_for('toggle_user', user_id=user.id) }}" 
+                                   class="btn btn-sm btn-{{ 'success' if not user.is_active else 'danger' }}"
+                                   onclick="return confirm('Вы уверены, что хотите {{ 'разблокировать' if not user.is_active else 'заблокировать' }} пользователя {{ user.username }}?')">
+                                    {{ 'Разблокировать' if not user.is_active else 'Заблокировать' }}
+                                </a>
+                                <a href="{{ url_for('delete_user', user_id=user.id) }}" 
+                                   class="btn btn-sm btn-danger"
+                                   onclick="return confirm('⚠️ ВНИМАНИЕ! Вы уверены, что хотите полностью удалить пользователя {{ user.username }}? Это действие невозможно отменить! Все данные пользователя будут безвозвратно удалены.')">
+                                    🗑️ Удалить
+                                </a>
+                            {% else %}
+                                <button class="btn btn-sm btn-secondary" disabled>Текущий</button>
                             {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-            <div class="table-actions">
-                <a href="{{ url_for('admin_add_user') }}" class="btn btn-success">
-                    ➕ Добавить пользователя
-                </a>
-            </div>
         </div>
 
         {% if not users %}
@@ -107,42 +111,96 @@
         {% endif %}
     </div>
 
+    <!-- Кнопка добавления пользователя -->
+    <div class="add-user-container" style="text-align: center; margin: 20px 0;">
+        <a href="{{ url_for('admin_add_user') }}" class="btn btn-success">
+            ➕ Добавить пользователя
+        </a>
+    </div>
+
     <div class="admin-actions">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">← На главную</a>
     </div>
 </div>
+
+<style>
+.status-active {
+    color: #28a745;
+    font-weight: 500;
+    background: rgba(40, 167, 69, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.status-inactive {
+    color: #dc3545;
+    font-weight: 500;
+    background: rgba(220, 53, 69, 0.1);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.filter-select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-left: 10px;
+}
+
+.user-row[data-status="inactive"] {
+    background-color: rgba(220, 53, 69, 0.05);
+}
+
+.user-row[data-status="inactive"]:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.user-actions {
+    text-align: center;
+    min-width: 140px;
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.table-actions {
+    display: flex;
+    gap: 10px;
+}
+
+@media (max-width: 768px) {
+    .table-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .table-actions {
+        justify-content: center;
+    }
+    
+    .user-actions {
+        min-width: 120px;
+    }
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function viewUser(userId) {
-    alert('Просмотр пользователя ID: ' + userId);
-    // Здесь будет реализация просмотра детальной информации
-}
-
-function editUser(userId) {
-    alert('Редактирование пользователя ID: ' + userId);
-    // Здесь будет реализация редактирования
-}
-
-function toggleUser(userId) {
-    if (confirm('Вы уверены, что хотите изменить статус пользователя?')) {
-        alert('Изменение статуса пользователя ID: ' + userId);
-        // Здесь будет AJAX запрос для изменения статуса
-    }
-}
-
-// Поиск пользователей
-document.getElementById('searchUsers').addEventListener('input', function(e) {
-    const searchTerm = e.target.value.toLowerCase();
+// Фильтрация по статусу
+document.getElementById('filterStatus').addEventListener('change', function(e) {
+    const status = e.target.value;
     const rows = document.querySelectorAll('.user-row');
     
     rows.forEach(row => {
-        const username = row.querySelector('.user-username').textContent.toLowerCase();
-        const email = row.querySelector('.user-email').textContent.toLowerCase();
-        const role = row.querySelector('.user-role').textContent.toLowerCase();
+        const rowStatus = row.getAttribute('data-status');
         
-        if (username.includes(searchTerm) || email.includes(searchTerm) || role.includes(searchTerm)) {
+        if (status === 'all' || status === rowStatus) {
             row.style.display = '';
         } else {
             row.style.display = 'none';

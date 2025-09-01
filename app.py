@@ -241,8 +241,9 @@ def login():
             flash('Неверное имя пользователя или пароль.', 'error')
             return render_template('login.html')
         
+        # Проверка активности аккаунта
         if not user.is_active:
-            flash('Ваш аккаунт деактивирован.', 'error')
+            flash('Данный аккаунт заблокирован. Обратитесь к администратору.', 'error')
             return render_template('login.html')
         
         login_user(user, remember=remember_me)
@@ -260,11 +261,13 @@ def register():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         password_confirm = request.form.get('password_confirm', '')
-        role = request.form.get('role', '').strip()
+        
+        # Все новые пользователи автоматически становятся клиентами
+        role = 'client'
         
         errors = []
         
-        if not all([username, email, password, password_confirm, role]):
+        if not all([username, email, password, password_confirm]):
             errors.append('Все поля обязательны для заполнения.')
         
         if len(username) < 3:
@@ -275,9 +278,6 @@ def register():
         
         if password != password_confirm:
             errors.append('Пароли не совпадают.')
-        
-        if role not in ['client', 'customer', 'admin']:
-            errors.append('Указана неверная роль.')
         
         if User.query.filter_by(username=username).first():
             errors.append('Пользователь с таким именем уже существует.')
@@ -299,6 +299,8 @@ def register():
             new_user.set_password(password)
             db.session.add(new_user)
             db.session.commit()
+            
+            flash('Регистрация успешна! Теперь вы можете войти в систему.', 'success')
             return redirect(url_for('login'))
             
         except Exception as e:
@@ -818,6 +820,71 @@ def expense_history():
                          user_services=user_services,
                          user=current_user)
 
+# Блокировка/разблокировка пользователя
+@app.route('/admin/user/toggle/<int:user_id>')
+@login_required
+def toggle_user(user_id):
+    """Блокировка/разблокировка пользователя"""
+    if current_user.role != 'admin':
+        flash('Доступ запрещен. Только для администраторов.', 'error')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        flash('Нельзя заблокировать собственный аккаунт', 'error')
+        return redirect(url_for('admin_users'))
+    
+    try:
+        user.is_active = not user.is_active
+        db.session.commit()
+        
+        status = "разблокирован" if user.is_active else "заблокирован"
+        flash(f'Пользователь {user.username} {status}!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при изменении статуса пользователя: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_users'))
+
+# Добавим проверку в декоратор login_required или в начало каждой функции
+@app.before_request
+def check_user_active():
+    if current_user.is_authenticated and not current_user.is_active:
+        logout_user()
+        flash('Ваш аккаунт заблокирован. Обратитесь к администратору.', 'error')
+        return redirect(url_for('login'))
+    
+@app.route('/admin/user/delete/<int:user_id>')
+@login_required
+def delete_user(user_id):
+    """Полное удаление пользователя из системы"""
+    if current_user.role != 'admin':
+        flash('Доступ запрещен. Только для администраторов.', 'error')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    if user.id == current_user.id:
+        flash('Нельзя удалить собственный аккаунт', 'error')
+        return redirect(url_for('admin_users'))
+    
+    try:
+        # Удаляем все связанные данные пользователя
+        UserService.query.filter_by(user_id=user_id).delete()
+        UsedPromoCode.query.filter_by(user_id=user_id).delete()
+        Transaction.query.filter_by(user_id=user_id).delete()
+        
+        # Удаляем самого пользователя
+        db.session.delete(user)
+        db.session.commit()
+        
+        flash(f'Пользователь {user.username} полностью удален из системы!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при удалении пользователя: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_users'))
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 
 def create_tables():

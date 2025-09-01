@@ -31,17 +31,13 @@
                    placeholder="Повторите пароль">
         </div>
 
-        <div class="form-group">
-            <label for="role">Роль:</label>
-            <select id="role" name="role" class="form-input" required>
-                <option value="">Выберите роль</option>
-                <option value="client">Клиент</option>
-                <option value="customer">Заказчик</option>
-                <option value="admin">Администратор</option>
-            </select>
+        <!-- Скрытое поле с фиксированной ролью "client" -->
+        <input type="hidden" name="role" value="client">
+
+        <div style="margin-top: 25px;">
+            <button type="submit" class="btn btn-primary btn-full">Зарегистрироваться</button>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-full">Зарегистрироваться</button>
     </form>
 
     <div style="margin-top: 20px; text-align: center;">
