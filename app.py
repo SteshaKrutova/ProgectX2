@@ -182,6 +182,19 @@ class Transaction(db.Model):
 
     def __repr__(self):
         return f'<Transaction {self.type} {self.amount} by User {self.user_id}>'
+    
+class PromoCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(50), unique=True, nullable=False)  # Любые символы
+    amount = db.Column(db.Float, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    creator = db.relationship('User', backref=db.backref('created_promo_codes', lazy=True))
+
+    def __repr__(self):
+        return f'<PromoCode {self.code} - {self.amount} руб.>'
 
 # Загрузчик пользователя для Flask-Login
 @login_manager.user_loader
@@ -773,14 +786,16 @@ def add_balance_page():
 @app.route('/apply-promo', methods=['POST'])
 @login_required
 def apply_promo():
-    """Обработка промокода"""
     if current_user.role != 'client':
         flash('Эта функция доступна только клиентам', 'error')
         return redirect(url_for('index'))
     
-    promo_code = request.form.get('promo_code', '').strip().lower()
+    promo_code = request.form.get('promo_code', '').strip()
     
-    if promo_code == 'progectx2':
+    # Ищем промокод в базе данных (точное совпадение)
+    promo = PromoCode.query.filter_by(code=promo_code, is_active=True).first()
+    
+    if promo:
         # Проверяем, не использовал ли уже пользователь этот промокод
         already_used = UsedPromoCode.query.filter_by(
             user_id=current_user.id, 
@@ -791,17 +806,17 @@ def apply_promo():
             flash('❌ Вы уже использовали этот промокод ранее', 'error')
         else:
             # Добавляем бонус и записываем использование
-            current_user.balance += 1000
+            current_user.balance += promo.amount
             new_used_promo = UsedPromoCode(
                 user_id=current_user.id,
                 promo_code=promo_code,
-                amount=1000
+                amount=promo.amount
             )
             db.session.add(new_used_promo)
             db.session.commit()
-            flash('🎉 Промокод успешно активирован! На ваш баланс добавлено 1000 рублей.', 'success')
+            flash(f'🎉 Промокод успешно активирован! На ваш баланс добавлено {promo.amount} рублей.', 'success')
     else:
-        flash('❌ Неверный промокод. Попробуйте "progectx2"', 'error')
+        flash('❌ Неверный промокод', 'error')
     
     return redirect(url_for('add_balance_page'))
 
@@ -885,6 +900,105 @@ def delete_user(user_id):
         flash(f'Ошибка при удалении пользователя: {str(e)}', 'error')
     
     return redirect(url_for('admin_users'))
+# система  промокодов для заказчиков
+@app.route('/customer/promo-codes')
+@login_required
+def customer_promo_codes():
+    """Страница управления промокодами для заказчика"""
+    if current_user.role != 'customer':
+        flash('Доступ запрещен. Только для заказчиков.', 'error')
+        return redirect(url_for('index'))
+    
+    promo_codes = PromoCode.query.filter_by(created_by=current_user.id).order_by(PromoCode.created_at.desc()).all()
+    return render_template('customer_promo_codes.html', promo_codes=promo_codes)
+
+@app.route('/customer/promo-code/create', methods=['POST'])
+@login_required
+def create_promo_code():
+    """Создание промокода"""
+    if current_user.role != 'customer':
+        flash('Доступ запрещен. Только для заказчиков.', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    code = request.form.get('code', '').strip()
+    
+    try:
+        amount = float(request.form.get('amount', 0))
+    except ValueError:
+        flash('Неверная сумма промокода', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    if not code or amount <= 0:
+        flash('Все поля обязательны для заполнения', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    # Проверяем, не существует ли уже такой промокод (без приведения к верхнему регистру)
+    existing_promo = PromoCode.query.filter_by(code=code).first()
+    if existing_promo:
+        flash('Промокод с таким названием уже существует', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    try:
+        new_promo = PromoCode(
+            code=code,
+            amount=amount,
+            created_by=current_user.id
+        )
+        db.session.add(new_promo)
+        db.session.commit()
+        flash('Промокод успешно создан!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при создании промокода: {str(e)}', 'error')
+    
+    return redirect(url_for('customer_promo_codes'))
+
+@app.route('/customer/promo-code/toggle/<int:promo_id>')
+@login_required
+def toggle_promo_code(promo_id):
+    """Активация/деактивация промокода"""
+    if current_user.role != 'customer':
+        flash('Доступ запрещен. Только для заказчиков.', 'error')
+        return redirect(url_for('index'))
+    
+    promo_code = PromoCode.query.filter_by(id=promo_id, created_by=current_user.id).first()
+    if not promo_code:
+        flash('Промокод не найден', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    try:
+        promo_code.is_active = not promo_code.is_active
+        db.session.commit()
+        status = "активирован" if promo_code.is_active else "деактивирован"
+        flash(f'Промокод "{promo_code.code}" {status}!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при изменении статуса промокода: {str(e)}', 'error')
+    
+    return redirect(url_for('customer_promo_codes'))
+
+@app.route('/customer/promo-code/delete/<int:promo_id>')
+@login_required
+def delete_promo_code(promo_id):
+    """Удаление промокода"""
+    if current_user.role != 'customer':
+        flash('Доступ запрещен. Только для заказчиков.', 'error')
+        return redirect(url_for('index'))
+    
+    promo_code = PromoCode.query.filter_by(id=promo_id, created_by=current_user.id).first()
+    if not promo_code:
+        flash('Промокод не найден', 'error')
+        return redirect(url_for('customer_promo_codes'))
+    
+    try:
+        db.session.delete(promo_code)
+        db.session.commit()
+        flash('Промокод успешно удален!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при удалении промокода: {str(e)}', 'error')
+    
+    return redirect(url_for('customer_promo_codes'))
 # ================== СОЗДАНИЕ БАЗЫ ДАННЫХ ==================
 
 def create_tables():

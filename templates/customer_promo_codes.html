@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Управление промокодами - ProjectX2{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2>🎫 Управление промокодами</h2>
+        <p class="admin-subtitle">Создание и управление промокодами для клиентов</p>
+    </div>
+
+    <!-- Форма создания промокода -->
+    <div class="form-section">
+        <h3>➕ Создать новый промокод</h3>
+        <form method="POST" action="{{ url_for('create_promo_code') }}" class="auth-form">
+            <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                    <label>Название промокода:</label>
+                    <input type="text" name="code" class="form-input" required 
+                        placeholder="Например: Лето2024 или summer24">
+                </div>
+                
+                <div class="form-group" style="margin-left: auto; min-width: 120px;">
+                    <label>Сумма (руб.):</label>
+                    <input type="number" name="amount" class="form-input" required 
+                        min="1" step="1" placeholder="100">
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 10px;">
+                <button type="submit" class="btn btn-success">Создать промокод</button>
+            </div>
+        </form>
+    </div>
+
+
+    <!-- Список промокодов -->
+    <div class="promo-codes-section">
+        <h3>📋 Мои промокоды</h3>
+        
+        {% if promo_codes %}
+            <div class="table-responsive">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Промокод</th>
+                            <th>Сумма</th>
+                            <th>Статус</th>
+                            <th>Дата создания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for promo in promo_codes %}
+                        <tr>
+                            <td><strong>{{ promo.code }}</strong></td>
+                            <td>{{ promo.amount }} руб.</td>
+                            <td>
+                                <span class="status-{{ 'active' if promo.is_active else 'inactive' }}">
+                                    {{ 'Активен' if promo.is_active else 'Неактивен' }}
+                                </span>
+                            </td>
+                            <td>{{ promo.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                            <td class="user-actions">
+                                <a href="{{ url_for('toggle_promo_code', promo_id=promo.id) }}" 
+                                   class="btn btn-sm btn-{{ 'success' if not promo.is_active else 'warning' }}">
+                                    {{ 'Активировать' if not promo.is_active else 'Деактивировать' }}
+                                </a>
+                                <a href="{{ url_for('delete_promo_code', promo_id=promo.id) }}" 
+                                   class="btn btn-sm btn-danger"
+                                   onclick="return confirm('Удалить промокод {{ promo.code }}?')">
+                                    🗑️ Удалить
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">🎫</div>
+                <h4>Промокоды не найдены</h4>
+                <p>У вас пока нет созданных промокодов.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="admin-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-info">🏠 На главную</a>
+    </div>
+</div>
+
+<style>
+.form-row {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+    .form-row {
+        flex-direction: column;
+    }
+    
+    .form-group {
+        margin-left: 0 !important;
+        min-width: auto !important;
+    }
+.form-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+}
+
+.form-section h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.promo-codes-section {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.auth-form {
+    max-width: 400px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.status-active {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.status-inactive {
+    color: #dc3545;
+    font-weight: 500;
+}
+</style>
+{% endblock %}
